@@ -13,11 +13,11 @@ Cisco UCS C220M5
 
 Cisco BMC FW below 4.x has its flaws with regards to redfish API. Hence I recommend to update at least to 4.0(1c).
 
-Dell PowerEdge R640
-Dell PowerEdge R730
-Dell PowerEdge R740
-Dell PowerEdge R640
-Dell PowerEdge R840
+Dell PowerEdge R640  
+Dell PowerEdge R730  
+Dell PowerEdge R740  
+Dell PowerEdge R640  
+Dell PowerEdge R840  
 
 ## Example Call
 

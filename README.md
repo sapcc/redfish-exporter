@@ -8,7 +8,7 @@ It has been tested with the following server models:
 Cisco UCS C480M5, working properly since BMC FW 4.1(1d)  
 Cisco UCS C240M4  
 Cisco UCS C240M5  
-Cisco UCS C220M4
+Cisco UCS C220M4  
 Cisco UCS C220M5
 
 Cisco BMC FW below 4.x has its flaws with regards to redfish API. Hence I recommend to update at least to 4.0(1c).

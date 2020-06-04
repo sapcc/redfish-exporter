@@ -24,7 +24,7 @@ Dell PowerEdge R840
 if you are logged in to the POD running the exporter you can call
 
 ```bash
-curl http://localhost:9200/redfish?target=node001r-bm001.cc.eu-de-1.cloud.sap&job=redfish/myjob
+curl http://localhost:9200/redfish?target=<your_server_ip_or_fqdn>&job=redfish/myjob
 ```
 
 ## Prerequisites and Installation

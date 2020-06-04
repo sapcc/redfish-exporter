@@ -1,0 +1,5 @@
+requests
+prometheus-client
+falcon
+yamlconfig
+argparse

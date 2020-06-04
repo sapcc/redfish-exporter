@@ -1,0 +1,12 @@
+listen_port: 9200
+username: 'root'
+password: 'calvin'
+timeout: 40
+job: 'redfish/bb'
+job2user_mapping: {
+  redfish/cp: REDFISH_CP,
+  redfish/bb: REDFISH_BB,
+  redfish/bm: REDFISH_BM
+}
+app_env: dev
+max_retries: 3

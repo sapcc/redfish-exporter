@@ -1,4 +1,4 @@
-$version = "v0.1.12"
+$version = get-date -Format yyyyMMddHHmmss
 $image = "redfish-exporter"
 
 docker login keppel.eu-de-1.cloud.sap

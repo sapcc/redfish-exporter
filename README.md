@@ -1,4 +1,4 @@
-# redfish-exporter
+# Redfish-Exporter
 
 This is a Prometheus Exporter for extracting metrics from a server using the Redfish API.
 The hostname of the server has to be passed as **target parameter** in the http call.
@@ -11,20 +11,22 @@ Cisco UCS C240M5
 Cisco UCS C220M4  
 Cisco UCS C220M5
 
-Cisco BMC FW below 4.x has its flaws with regards to redfish API. Hence I recommend to update at least to 4.0(1c).
+Cisco BMC FW below 4.x has its flaws regarding redfish API. Hence, I recommend updating at least to 4.0(1c).
 
 Dell PowerEdge R640  
 Dell PowerEdge R730  
 Dell PowerEdge R740  
 Dell PowerEdge R640  
-Dell PowerEdge R840  
+Dell PowerEdge R840
+
+Lenovo ThinkSystem SR950
 
 ## Example Call
 
-if you are logged in to the POD running the exporter you can call
+If you are logged into the POD running the exporter, you can call
 
 ```bash
-curl http://localhost:9200/redfish?target=<your_server_ip_or_fqdn>&job=redfish/myjob
+curl http://localhost:9200/redfish?target=node001r-bm001.cc.eu-de-1.cloud.sap&job=redfish/myjob
 ```
 
 ## Prerequisites and Installation
@@ -39,15 +41,14 @@ There is also a docker file available to create a docker container to run the ex
 
 ## The config.yml file
 
-* The **listen_port** is providing the port on which the exporter is waiting to receive calls. it is overwritten by the environment variable **LISTEN_PORT**.
+* The **listen_port** is providing the port on which the exporter is waiting to receive calls. It is overwritten by the environment variable **LISTEN_PORT**.
 
 * The credentials for login to the switches can either be added to the config.yaml file or passed via environment variables. The environment variables are taking precedence over the entries in config.yaml file.
 
-    If you have several different jobs with different credentials you can do a mapping of job names to environment variables using the **job2user_mapping** entries. `REDFISH_JOB1_USERNAME` and `REDFISH_JOB1_PASSWORD` would be the variables from the example of the first job.
+    The mapping of job names to environment variables follows a schema: `REDFISH_JOB1_USERNAME` and `REDFISH_JOB1_PASSWORD` would be the variables for example of the first job called `redfish/job1`.
+    A slash gets replaced by underscore and everything gets converted to uppercase.
 
-    The environment overwrites the settings in the config file for username and password.
-
-* The **app_env** can be specified in the config file or also via environment variable APP_ENV. If set to `production` it will only log info messages. For all other values the level will be set to debug.
+* The **app_env** can be specified in the config file or also via environment variable APP_ENV. If set to `production`, it will only log info messages. For all other values the level will be set to debug.
 
 * The **timeout** parameter specifies the amount of time to wait for an answer from the server. Again this can alos be provided via TIMEOUT environment variable.
 
@@ -55,17 +56,12 @@ There is also a docker file available to create a docker container to run the ex
 
 ### Example of a config file
 
-```text
+```yaml
 listen_port: 9200
 username: <your username>
 password: <your password>
 timeout: 40
 job: 'redfish/myjob'
-job2user_mapping: {
-  redfish/myjob: REDFISH_JOB1,
-  redfish/otherjob: REDFISH_JOB2,
-  redfish/thirdjob: REDFISH_JOB3
-}
 app_env: dev
 max_retries: 3
 ```

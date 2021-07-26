@@ -1,7 +1,6 @@
-$version = "v0.1.3"
+$version = "v0.1.12"
+$image = "redfish-exporter"
 
-docker build . -t hub.global.cloud.sap/monsoon/redfish-exporter:$version
-docker push hub.global.cloud.sap/monsoon/redfish-exporter:$version
-
-docker build . -t keppel.eu-de-1.cloud.sap/ccloud/redfish-exporter:$version
-docker push keppel.eu-de-1.cloud.sap/ccloud/redfish-exporter:$version
+docker login keppel.eu-de-1.cloud.sap
+docker build . -t keppel.eu-de-1.cloud.sap/ccloud/${image}:$version
+docker push keppel.eu-de-1.cloud.sap/ccloud/${image}:$version

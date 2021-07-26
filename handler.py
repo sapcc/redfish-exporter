@@ -2,6 +2,7 @@ import falcon
 import logging
 import socket
 import re
+import os
 
 from wsgiref import simple_server
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
@@ -12,11 +13,13 @@ from collector import RedfishMetricsCollector
 class welcomePage:
 
     def on_get(self, req, resp):
-        resp.body = '{"message": "This is the redfish exporter. Use /redfish to retrieve metrics."}'
+        resp.body = '{"message": "This is the redfish exporter.\nUse /redfish to retrieve health metrics.\nUse /firmware to retrieve firmware version metrics."}'
 
-class metricHandler:
-    def __init__(self, config):
+class metricsHandler:
+    def __init__(self, config, firmware = False, health = False):
         self._config = config
+        self._firmware = firmware
+        self._health = health
 
     def on_get(self, req, resp):
 
@@ -26,11 +29,13 @@ class metricHandler:
             logging.error(msg)
             raise falcon.HTTPMissingParam('target')
 
+        logging.debug("Received Target: %s", self._target)
+
         self._job = req.get_param("job")
         if not self._job:
             self._job = self._config['job']
 
-        logging.debug("Received Target: %s", self._target)
+        logging.debug("Received Job: %s", self._job)
 
         ip_re = re.compile(r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$")
 
@@ -43,33 +48,40 @@ class metricHandler:
 
             except socket.herror as excptn:
                 msg = "Target {0}: Reverse DNS lookup failed: {1}".format(self._target,excptn)
-                logging.error(msg)
+                logging.warning(msg)
         else:
             try:
                 self._target = socket.gethostbyname(self._host)
 
             except socket.gaierror as excptn:
                 msg = "Target {0}: DNS lookup failed: {1}".format(self._target,excptn)
-                logging.error(msg)
+                logging.warning(msg)
 
-        try:
-            userprefix = self._config['job2user_mapping'][self._job]
+        usr_env_var = self._job.replace("/","_").upper() + "_USERNAME"
+        pwd_env_var = self._job.replace("/","_").upper() + "_PASSWORD"
+        usr = os.getenv(usr_env_var, self._config['username'])
+        pwd = os.getenv(pwd_env_var, self._config['password'])
 
-        except KeyError:
-            msg = "Target {0}: Unknown job provided: {1}".format(self._target, self._job)
+        if not usr:
+            msg = "Target {0}: Unknown job provided or no user found in environment and config file: {1}".format(self._target, self._job)
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, 'job')
 
-        usr = userprefix + "_USERNAME"
-        pwd = userprefix + "_PASSWORD"
-        logging.debug("Target {0}: Search for User in Environment Variable {1}".format(self._target, usr))
+        if not pwd:
+            msg = "Target {0}: Unknown job provided or no password found in environment and config file: {1}".format(self._target, self._job)
+            logging.error(msg)
+            raise falcon.HTTPInvalidParam(msg, 'job')
+
+        logging.debug("Target: {0}: Using user {1}".format(self._target, usr))
 
         registry = RedfishMetricsCollector(
             self._config,
             target = self._target,
             host = self._host,
             usr = usr,
-            pwd = pwd
+            pwd = pwd,
+            firmware = self._firmware,
+            health = self._health
         )
 
         collected_metric = generate_latest(registry)

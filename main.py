@@ -1,4 +1,4 @@
-from handler import metricHandler
+from handler import metricsHandler
 from handler import welcomePage
 import argparse
 from yamlconfig import YamlConfig
@@ -33,7 +33,8 @@ def falcon_app():
     ip = socket.gethostbyname(socket.gethostname())
     logging.info("Listening on IP %s", ip)
     api = falcon.API()
-    api.add_route('/redfish', metricHandler(config))
+    api.add_route('/redfish', metricsHandler(config, health = True))
+    api.add_route('/firmware', metricsHandler(config, firmware = True))
     api.add_route('/', welcomePage())
 
     try:
@@ -42,9 +43,7 @@ def falcon_app():
         logging.error("Couldn't start Server: %s", excptn)
 
     try:
-        t = threading.Thread(target=httpd.serve_forever())
-        t.daemon = True
-        t.start()
+        httpd.serve_forever()
     except KeyboardInterrupt:
         logging.info("Stopping Redfish Prometheus Server")
 
@@ -69,7 +68,12 @@ if __name__ == '__main__':
     warnings.filterwarnings("ignore")
 
     # get the config
-    config = YamlConfig(args.config)
+    try:
+        config = YamlConfig(args.config)
+    except FileNotFoundError as e:
+        print("Config File not found: {0}".format(e))
+        exit(1)
+
 
     enable_logging()
 

@@ -308,7 +308,7 @@ class RedfishMetricsCollector(object):
                         for disk in controller_data['Drives']:
                             current_labels = {'type': 'disk'}
                             disk_data = self.connect_server(disk['@odata.id'])
-                            if disk_data is '':
+                            if disk_data == '':
                                 continue
 
                             for disk_attribute in disk_attributes:

@@ -111,7 +111,7 @@ class RedfishMetricsCollector(object):
                 logging.debug("Target {0}: Using no auth".format(self._target))
             elif basic_auth or self._basic_auth:
                 s.auth = (self._username, self._password)
-                logging.debug("Target {0}: Using basic auth".format(self._target))
+                logging.debug("Target {0}: Using basic auth with user {1}".format(self._target, self._username))
             else:
                 logging.debug("Target {0}: Using auth token".format(self._target))
                 s.headers.update({'X-Auth-Token': self._auth_token})
@@ -308,14 +308,19 @@ class RedfishMetricsCollector(object):
                         for disk in controller_data['Drives']:
                             current_labels = {'type': 'disk'}
                             disk_data = self.connect_server(disk['@odata.id'])
+                            if disk_data is '':
+                                continue
 
                             for disk_attribute in disk_attributes:
                                 if disk_attribute in disk_data:
                                     current_labels.update({disk_attributes[disk_attribute]: disk_data[disk_attribute]})
 
                             current_labels.update(self._labels)
-                            disk_status = math.nan if disk_data['Status']['Health'] is None else self._status[disk_data['Status']['Health'].lower()]
-                            health_metrics.add_sample('redfish_health', value=disk_status, labels=current_labels)
+                            if 'Health' in disk_data['Status']:
+                                disk_status = math.nan if disk_data['Status']['Health'] is None else self._status[disk_data['Status']['Health'].lower()]
+                                health_metrics.add_sample('redfish_health', value=disk_status, labels=current_labels)
+                            else:
+                                logging.warning("Target {0}, Host {1}, Model {2}, Disk {3}: No health data found.".format(self._target, self._host,self._model, disk_data['name']))
 
             elif self._urls['SimpleStorage']:
                 storage_collection = self.connect_server(self._urls['SimpleStorage'])

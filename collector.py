@@ -126,24 +126,24 @@ class RedfishMetricsCollector(object):
                 except requests.exceptions.HTTPError as err:
                     self._last_http_code = err.response.status_code
                     if err.response.status_code == 401:
-                        logging.error("Target {0}: Authorization Error: Wrong job provided or user/password set wrong on server {1}: {2}!".format(self._target, self._host, err))
+                        logging.error("Target {0}: Authorization Error: Wrong job provided or user/password set wrong on server {1}: {2}".format(self._target, self._host, err))
                         break
                     else:
-                        logging.error("Target {0}: HTTP Error on server {1}: {2}!".format(self._target, self._host, err))
+                        logging.error("Target {0}: HTTP Error on server {1}: {2}".format(self._target, self._host, err))
                         break
                 except requests.exceptions.ConnectTimeout:
-                    logging.error("Target {0}: Timeout while connecting to {1}!".format(self._target, self._host))
+                    logging.error("Target {0}: Timeout while connecting to {1}".format(self._target, self._host))
                     self._last_http_code = 408
                     break
                 except requests.exceptions.ReadTimeout:
                     logging.error("Target {0}: Timeout while reading data from {1}! Retry #{2}".format(self._target, self._host, attempt))
                     self._last_http_code = 408
                 except requests.exceptions.ConnectionError as excptn:
-                    logging.error("Target {0}: Unable to connect to {1}: {2}!".format(self._target, self._host, excptn))
+                    logging.error("Target {0}: Unable to connect to {1}: {2}".format(self._target, self._host, excptn))
                     self._last_http_code = 444
                     break
                 except:
-                    logging.error("Target {0}: Unexpected error: {1}!".format(self._target, sys.exc_info()[0]))
+                    logging.error("Target {0}: Unexpected error: {1}".format(self._target, sys.exc_info()[0]))
                     self._last_http_code = 500
                 else:
                     self._last_http_code = req.status_code
@@ -227,274 +227,289 @@ class RedfishMetricsCollector(object):
 
     def collect(self):
 
-        if self._redfish_up == 1:
-            self._get_labels()
+        try:
+            if self._redfish_up == 1:
+                self._get_labels()
 
-        # Export the up and response metrics
-        up_metrics = GaugeMetricFamily('server_monitoring_info','Server Monitoring',labels=self._labels)
+            # Export the up and response metrics
+            up_metrics = GaugeMetricFamily('redfish_up','Server Monitoring for redfish availability',labels=self._labels)
+            response_metrics = GaugeMetricFamily('redfish_response_duration_seconds','Server Monitoring for redfish response time',labels=self._labels)
 
-        up_metrics.add_sample('redfish_up', value=self._redfish_up, labels=self._labels)
-        up_metrics.add_sample('redfish_response_duration_seconds', value=self._response_time , labels=self._labels)
-        yield up_metrics
+            up_metrics.add_sample('redfish_up', value=self._redfish_up, labels=self._labels)
+            response_metrics.add_sample('redfish_response_duration_seconds', value=self._response_time , labels=self._labels)
+            yield up_metrics
+            yield response_metrics
 
-        if self._redfish_up == 0:
-            return
+            if self._redfish_up == 0:
+                return
 
-        if self._health:
-            health_metrics = GaugeMetricFamily('server_monitoring_health','Server Monitoring Health Data',labels=self._labels)
+            if self._health:
+                health_metrics = GaugeMetricFamily('redfish_health','Server Monitoring Health Data',labels=self._labels)
+                powerstate_metrics = GaugeMetricFamily('redfish_powerstate','Server Monitoring Power State Data',labels=self._labels)
 
-            current_labels = {'type': 'system', 'name': 'summary'}
-            current_labels.update(self._labels)
-            health_metrics.add_sample('redfish_health', value=self._server_health, labels=current_labels)
-
-            # Get the processor health data
-            if self._urls['Processors']:
-                logging.debug("Target {0}: Get the CPU health data.".format(self._target))
-                processor_collection = self.connect_server(self._urls['Processors'])
-
-                if processor_collection:
-                    health_metrics.add_sample('redfish_powerstate', value=self._powerstate , labels=self._labels)
-                    for processor in processor_collection['Members']:
-                        processor_data = self.connect_server(processor['@odata.id'])
-                        current_labels = {'type': 'processor', 'name': processor_data.get('Socket', "unknown"), 'cpu_type': processor_data.get('ProcessorType', "unknown"), 'cpu_model': processor_data.get('Model', "unknown"), 'cpu_cores': str(processor_data.get('TotalCores', "unknown")), 'cpu_threads': str(processor_data.get('TotalThreads', "unknown"))}
-                        current_labels.update(self._labels)
-                        if processor_data['Status']['Health']:
-                            health_metrics.add_sample('redfish_health', value=self._status[processor_data['Status']['Health'].lower()], labels=current_labels)
-                        else:
-                            logging.warning("Target {0}: No Processor health data provided ({1})!".format(self._target, processor['@odata.id']))
-                            health_metrics.add_sample('redfish_health', value=math.nan, labels=current_labels)
-
-            else:
-                logging.warning("Target {0}: No Processors URL provided! Cannot get Processors data!".format(self._target))
-
-            # Get the storage health data
-            if self._urls['Storage']:
-                logging.debug("Target {0}: Get the storage health data.".format(self._target))
-                storage_collection = self.connect_server(self._urls['Storage'])
-
-                if storage_collection:
-                    for controller in storage_collection['Members']:
-                        controller_data = self.connect_server(controller['@odata.id'])
-
-                        if controller_data.get('StorageControllers'):
-                            # Cisco sometimes uses a list or a dict
-                            if type(controller_data['StorageControllers']) == list:
-                                controller_details = controller_data['StorageControllers'][0]
-                            else:
-                                controller_details = controller_data['StorageControllers']
-                        else:
-                            controller_details = controller_data
-
-                        # HPE ILO5 is missing the Name in the details of the controllers
-                        if 'Name' in controller_details:
-                            controller_name = controller_details['Name']
-                        elif 'Name' in controller_data:
-                            controller_name = controller_data['Name']
-                        else:
-                            controller_name = 'unknown'
-
-                        if 'Health' in controller_details['Status']:
-                            # Cisco sometimes uses None as status for onboard controllers
-                            controller_status = math.nan if controller_details['Status']['Health'] is None else self._status[controller_details['Status']['Health'].lower()]
-                        else:
-                            logging.warning("Target {0}, Host {1}, Model {2}, Controller {3}: No health data found.".format(self._target, self._host,self._model, controller_name))
-
-                        current_labels = {'type': 'storage', 'name': controller_name, 'controller_model': controller_details.get('Model', 'unknown'), 'controller_manufacturer': controller_details.get('Manufacturer', 'unknown')}
-                        current_labels.update(self._labels)
-                        health_metrics.add_sample('redfish_health', value=controller_status, labels=current_labels)
-                        
-                        # Sometimes not all attributes are implemented. Checking if existing one by one.
-                        disk_attributes = {'Name': 'name', 'MediaType': 'disk_type', 'Model': 'disk_model', 'Manufacturer': 'disk_manufacturer'}
-                        for disk in controller_data['Drives']:
-                            current_labels = {'type': 'disk'}
-                            disk_data = self.connect_server(disk['@odata.id'])
-                            if disk_data == '':
-                                continue
-
-                            for disk_attribute in disk_attributes:
-                                if disk_attribute in disk_data:
-                                    current_labels.update({disk_attributes[disk_attribute]: disk_data[disk_attribute]})
-
-                            current_labels.update(self._labels)
-                            if 'Health' in disk_data['Status']:
-                                disk_status = math.nan if disk_data['Status']['Health'] is None else self._status[disk_data['Status']['Health'].lower()]
-                                health_metrics.add_sample('redfish_health', value=disk_status, labels=current_labels)
-                            else:
-                                logging.warning("Target {0}, Host {1}, Model {2}, Disk {3}: No health data found.".format(self._target, self._host,self._model, disk_data['name']))
-
-            elif self._urls['SimpleStorage']:
-                storage_collection = self.connect_server(self._urls['SimpleStorage'])
-                if storage_collection:
-                    for controller in storage_collection['Members']:
-                        controller_data = self.connect_server(controller['@odata.id'])
-                        controller_name = controller_data['Name']
-                        controller_status = math.nan if controller_data['Status']['Health'] is None else self._status[controller_data['Status']['Health'].lower()]
-
-                        current_labels = {'type': 'storage', 'name': controller_name}
-                        current_labels.update(self._labels)
-                        health_metrics.add_sample('redfish_health', value=controller_status, labels=current_labels)
-                        # Sometimes not all attributes are implemented. Checking if existing one by one.
-                        disk_attributes = {'Name': 'name', 'Model': 'disk_model', 'Manufacturer': 'disk_manufacturer'}
-                        for disk in controller_data['Devices']:
-                            current_labels = {'type': 'disk'}
-                            if disk['Status']['State'] != 'Absent':
-                                for disk_attribute in disk_attributes:
-                                    if disk_attribute in disk:
-                                        current_labels.update({disk_attributes[disk_attribute]: disk[disk_attribute]})
-
-                                current_labels.update(self._labels)
-                                health_metrics.add_sample('redfish_health', value=self._status[disk['Status']['Health'].lower()], labels=current_labels)
-            else:
-                logging.warning("Target {0}: No Storage URL provided! Cannot get Storage data!".format(self._target))
-
-
-            # Get the chassis health data
-            if self._urls['Chassis']:
-                logging.debug("Target {0}: Get the Chassis health data.".format(self._target))
-                chassis_data = self.connect_server(self._urls['Chassis'])
-                current_labels = {'type': 'chassis', 'name': chassis_data['Name']}
+                current_labels = {'type': 'system', 'name': 'summary'}
                 current_labels.update(self._labels)
-                health_metrics.add_sample('redfish_health', value=self._status[chassis_data['Status']['Health'].lower()], labels=current_labels)
-                if 'Power' in chassis_data:
-                    self._urls['Power'] = chassis_data['Power']['@odata.id']
-                if 'Thermal' in chassis_data:
-                    self._urls['Thermal'] = chassis_data['Thermal']['@odata.id']
-            else:
-                logging.warning("Target {0}: No Chassis URL provided! Cannot get Chassis data!".format(self._target))
+                health_metrics.add_sample('redfish_health', value=self._server_health, labels=current_labels)
 
-            # Get the powersupply health data
-            if self._urls['Power']:
-                logging.debug("Target {0}: Get the PDU health data.".format(self._target))
-                power_data = self.connect_server(self._urls['Power'])
-                if power_data:
-                    for psu in power_data['PowerSupplies']:
-                        psu_name = psu.get('Name', 'unknown')
-                        current_labels = {'type': 'powersupply', 'name': psu_name}
-                        current_labels.update(self._labels)
-                        psu_health = math.nan
-                        psu_status = dict((k.lower(),v) for k,v in psu['Status'].items()) # convert to lower case because there are differences per vendor
-                        if 'state' in psu_status:
-                            if psu_status['state'] != 'absent':
-                                if 'health' in psu_status:
-                                    psu_health = math.nan if psu_status['health'] is None else self._status[psu_status['health'].lower()]
-                                elif 'state' in psu_status:
-                                    psu_health = math.nan if psu_status['state'] is None else self._status[psu_status['state'].lower()]
-                        
-                        if psu_health is math.nan: 
-                            logging.warning("Target {0}, Host {1}, Model {2}, PSU {3}: No health data found.".format(self._target, self._host,self._model, psu_name))
+                # Get the processor health data
+                if self._urls['Processors']:
+                    logging.debug("Target {0}: Get the CPU health data.".format(self._target))
+                    processor_collection = self.connect_server(self._urls['Processors'])
 
-                        health_metrics.add_sample('redfish_health', value=psu_health, labels=current_labels)
-            else:
-                logging.warning("Target {0}: No Power URL provided! Cannot get PSU data!".format(self._target))
+                    if processor_collection:
+                        powerstate_metrics.add_sample('redfish_powerstate', value=self._powerstate , labels=self._labels)
+                        yield powerstate_metrics
+                        for processor in processor_collection['Members']:
+                            processor_data = self.connect_server(processor['@odata.id'])
+                            current_labels = {'type': 'processor', 'name': processor_data.get('Socket', "unknown"), 'cpu_type': processor_data.get('ProcessorType', "unknown"), 'cpu_model': processor_data.get('Model', "unknown"), 'cpu_cores': str(processor_data.get('TotalCores', "unknown")), 'cpu_threads': str(processor_data.get('TotalThreads', "unknown"))}
+                            current_labels.update(self._labels)
+                            if processor_data['Status']['Health']:
+                                health_metrics.add_sample('redfish_health', value=self._status[processor_data['Status']['Health'].lower()], labels=current_labels)
+                            else:
+                                logging.warning("Target {0}: No Processor health data provided ({1})!".format(self._target, processor['@odata.id']))
+                                health_metrics.add_sample('redfish_health', value=math.nan, labels=current_labels)
 
-            # Get the thermal health data
-            if self._urls['Thermal']:
-                logging.debug("Target {0}: Get the thermal health data.".format(self._target))
-                thermal_data = self.connect_server(self._urls['Thermal'])
-                if thermal_data:
-                    for fan in thermal_data['Fans']:
-                        fan_name = fan.get('Name', 'unknown')
-                        current_labels = {'type': 'fan', 'name': fan_name}
-                        current_labels.update(self._labels)
-                        fan_health = math.nan
-                        fan_status = dict((k.lower(),v) for k,v in fan['Status'].items()) # convert to lower case because there are differences per vendor
-                        if 'state' in fan_status:
-                            if fan_status['state'] != 'absent':
-                                if 'health' in fan_status:
-                                    fan_health = math.nan if fan_status['health'] is None or fan_status['health'] == '' else self._status[fan_status['health'].lower()]
-                                elif 'state' in fan_status:
-                                    fan_health = math.nan if fan_status['state'] is None else self._status[fan_status['state'].lower()]
+                else:
+                    logging.warning("Target {0}: No Processors URL provided! Cannot get Processors data!".format(self._target))
 
-                        if fan_health is math.nan: 
-                            logging.warning("Target {0}, Host {1}, Model {2}, Fan {3}: No health data found.".format(self._target, self._host,self._model, fan['Name']))
+                # Get the storage health data
+                if self._urls['Storage']:
+                    logging.debug("Target {0}: Get the storage health data.".format(self._target))
+                    storage_collection = self.connect_server(self._urls['Storage'])
 
-                        health_metrics.add_sample('redfish_health', value=fan_health, labels=current_labels)
-            else:
-                logging.warning("Target {0}: No Thermal URL provided! Cannot get thermal data!".format(self._target))
+                    if storage_collection:
+                        for controller in storage_collection['Members']:
+                            controller_data = self.connect_server(controller['@odata.id'])
 
-            # Export the memory data
-            if self._urls['Memory']:
-                logging.debug("Target {0}: Get the Memory data.".format(self._target))
+                            if controller_data.get('StorageControllers'):
+                                # Cisco sometimes uses a list or a dict
+                                if type(controller_data['StorageControllers']) == list:
+                                    controller_details = controller_data['StorageControllers'][0]
+                                else:
+                                    controller_details = controller_data['StorageControllers']
+                            else:
+                                controller_details = controller_data
 
-                memory_collection = self.connect_server(self._urls['Memory'])
-                if memory_collection:
-                    mem_metrics = GaugeMetricFamily('server_monitoring_memdata','Server Monitoring Memory Data',labels=self._labels)
-                    for dimm_url in memory_collection['Members']:
-                        dimm_info = self.connect_server(dimm_url['@odata.id'])
-                        current_labels = {'type': 'memory', 'name': dimm_info['Name'], 'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': dimm_info['Manufacturer']}
-                        current_labels.update(self._labels)
-                        dimm_status = math.nan
-                        if 'ErrorCorrection' in dimm_info:
-                            current_labels.update({'dimm_error_correction': dimm_info['ErrorCorrection']})
-                        if type(dimm_info['Status']) == str:
-                            dimm_status = self._status[dimm_info['Status'].lower()]
-                        else:
-                            if 'Health' in dimm_info['Status']:
-                                dimm_status = math.nan if dimm_info['Status']['Health'] is None else self._status[dimm_info['Status']['Health'].lower()]
-                            elif 'State' in dimm_info['Status']:
-                                dimm_status = math.nan if dimm_info['Status']['State'] is None else self._status[dimm_info['Status']['State'].lower()]
+                            # HPE ILO5 is missing the Name in the details of the controllers
+                            if 'Name' in controller_details:
+                                controller_name = controller_details['Name']
+                            elif 'Name' in controller_data:
+                                controller_name = controller_data['Name']
+                            else:
+                                controller_name = 'unknown'
 
-                        if dimm_status is math.nan: 
-                            logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: No health data found.".format(self._target, self._host,self._model, dimm_info['Name']))
-                        
-                        health_metrics.add_sample('redfish_health', value=dimm_status, labels=current_labels)
+                            if 'Health' in controller_details['Status']:
+                                # Cisco sometimes uses None as status for onboard controllers
+                                controller_status = math.nan if controller_details['Status']['Health'] is None else self._status[controller_details['Status']['Health'].lower()]
+                            else:
+                                logging.warning("Target {0}, Host {1}, Model {2}, Controller {3}: No health data found.".format(self._target, self._host,self._model, controller_name))
 
-                        if 'Metrics' in dimm_info:
-                            dimm_metrics = self.connect_server(dimm_info['Metrics']['@odata.id'])
-                            correctable_ecc_error = math.nan if dimm_metrics['HealthData']['AlarmTrips']['CorrectableECCError'] is None else int(dimm_metrics['HealthData']['AlarmTrips']['CorrectableECCError'])
-                            uncorrectable_ecc_error = math.nan if dimm_metrics['HealthData']['AlarmTrips']['UncorrectableECCError'] is None else int(dimm_metrics['HealthData']['AlarmTrips']['UncorrectableECCError'])
-                            mem_metrics.add_sample('redfish_memory_correctable', value=correctable_ecc_error, labels=current_labels)
-                            mem_metrics.add_sample('redfish_memory_uncorrectable', value=uncorrectable_ecc_error, labels=current_labels)
-                        else:
-                            logging.warning("Target {0}, Host {1}, Model {2}: Dimm {3}: No Dimm Metrics found.".format(self._target, self._host,self._model, dimm_info['Name']))
-                    
-                    yield mem_metrics
-            else:
-                logging.warning("Target {0}: No Memory URL provided! Cannot get memory data!".format(self._target))
+                            current_labels = {'type': 'storage', 'name': controller_name, 'controller_model': controller_details.get('Model', 'unknown'), 'controller_manufacturer': controller_details.get('Manufacturer', 'unknown')}
+                            current_labels.update(self._labels)
+                            health_metrics.add_sample('redfish_health', value=controller_status, labels=current_labels)
+                            
+                            # Sometimes not all attributes are implemented. Checking if existing one by one.
+                            disk_attributes = {'Name': 'name', 'MediaType': 'disk_type', 'Model': 'disk_model', 'Manufacturer': 'disk_manufacturer'}
+                            for disk in controller_data['Drives']:
+                                current_labels = {'type': 'disk'}
+                                disk_data = self.connect_server(disk['@odata.id'])
+                                if disk_data == '':
+                                    continue
 
-            health_metrics.add_sample('redfish_scrape_duration_seconds', value=round(time.time() - self._start_time,2), labels=self._labels)
-            yield health_metrics
+                                for disk_attribute in disk_attributes:
+                                    if disk_attribute in disk_data:
+                                        current_labels.update({disk_attributes[disk_attribute]: disk_data[disk_attribute]})
 
-        # Get the firmware information
-        if self._firmware:
-            logging.debug("Target {0}: Get the firmware information.".format(self._target))
-
-            fw_collection = self.connect_server("/redfish/v1/UpdateService/FirmwareInventory")
-            if fw_collection:
-                fw_metrics = GaugeMetricFamily('server_monitoring_fwdata','Server Monitoring Firmware Data',labels=self._labels)
-                for fw_member in fw_collection['Members']:
-                    fw_member_url = fw_member['@odata.id']
-                    if (search(".*Dell.*", self._manufacturer) and ("Installed" in fw_member_url)) or not search(".*Dell.*", self._manufacturer):
-                        server_response = self.connect_server(fw_member_url)
-                        name = server_response['Name'].split(",",1)[0]
-                        if 'Version' in server_response:
-                            version = server_response['Version']
-                            if version != "N/A":
-                                current_labels = {'name': name, 'version': version}
                                 current_labels.update(self._labels)
-                                fw_metrics.add_sample('redfish_version', value=1, labels=current_labels)
+                                if 'Health' in disk_data['Status']:
+                                    disk_status = math.nan if disk_data['Status']['Health'] is None else self._status[disk_data['Status']['Health'].lower()]
+                                    health_metrics.add_sample('redfish_health', value=disk_status, labels=current_labels)
+                                else:
+                                    logging.warning("Target {0}, Host {1}, Model {2}, Disk {3}: No health data found.".format(self._target, self._host,self._model, disk_data['name']))
 
-                yield fw_metrics
+                elif self._urls['SimpleStorage']:
+                    storage_collection = self.connect_server(self._urls['SimpleStorage'])
+                    if storage_collection:
+                        for controller in storage_collection['Members']:
+                            controller_data = self.connect_server(controller['@odata.id'])
+                            controller_name = controller_data['Name']
+                            controller_status = math.nan if controller_data['Status']['Health'] is None else self._status[controller_data['Status']['Health'].lower()]
+
+                            current_labels = {'type': 'storage', 'name': controller_name}
+                            current_labels.update(self._labels)
+                            health_metrics.add_sample('redfish_health', value=controller_status, labels=current_labels)
+                            # Sometimes not all attributes are implemented. Checking if existing one by one.
+                            disk_attributes = {'Name': 'name', 'Model': 'disk_model', 'Manufacturer': 'disk_manufacturer'}
+                            for disk in controller_data['Devices']:
+                                current_labels = {'type': 'disk'}
+                                if disk['Status']['State'] != 'Absent':
+                                    for disk_attribute in disk_attributes:
+                                        if disk_attribute in disk:
+                                            current_labels.update({disk_attributes[disk_attribute]: disk[disk_attribute]})
+
+                                    current_labels.update(self._labels)
+                                    health_metrics.add_sample('redfish_health', value=self._status[disk['Status']['Health'].lower()], labels=current_labels)
+                else:
+                    logging.warning("Target {0}: No Storage URL provided! Cannot get Storage data!".format(self._target))
+
+
+                # Get the chassis health data
+                if self._urls['Chassis']:
+                    logging.debug("Target {0}: Get the Chassis health data.".format(self._target))
+                    chassis_data = self.connect_server(self._urls['Chassis'])
+                    current_labels = {'type': 'chassis', 'name': chassis_data['Name']}
+                    current_labels.update(self._labels)
+                    health_metrics.add_sample('redfish_health', value=self._status[chassis_data['Status']['Health'].lower()], labels=current_labels)
+                    if 'Power' in chassis_data:
+                        self._urls['Power'] = chassis_data['Power']['@odata.id']
+                    if 'Thermal' in chassis_data:
+                        self._urls['Thermal'] = chassis_data['Thermal']['@odata.id']
+                else:
+                    logging.warning("Target {0}: No Chassis URL provided! Cannot get Chassis data!".format(self._target))
+
+                # Get the powersupply health data
+                if self._urls['Power']:
+                    logging.debug("Target {0}: Get the PDU health data.".format(self._target))
+                    power_data = self.connect_server(self._urls['Power'])
+                    if power_data:
+                        for psu in power_data['PowerSupplies']:
+                            psu_name = psu.get('Name', 'unknown')
+                            current_labels = {'type': 'powersupply', 'name': psu_name}
+                            current_labels.update(self._labels)
+                            psu_health = math.nan
+                            psu_status = dict((k.lower(),v) for k,v in psu['Status'].items()) # convert to lower case because there are differences per vendor
+                            if 'state' in psu_status:
+                                if psu_status['state'] != 'absent':
+                                    if 'health' in psu_status:
+                                        psu_health = math.nan if psu_status['health'] is None else self._status[psu_status['health'].lower()]
+                                    elif 'state' in psu_status:
+                                        psu_health = math.nan if psu_status['state'] is None else self._status[psu_status['state'].lower()]
+                            
+                            if psu_health is math.nan: 
+                                logging.warning("Target {0}, Host {1}, Model {2}, PSU {3}: No health data found.".format(self._target, self._host,self._model, psu_name))
+
+                            health_metrics.add_sample('redfish_health', value=psu_health, labels=current_labels)
+                else:
+                    logging.warning("Target {0}: No Power URL provided! Cannot get PSU data!".format(self._target))
+
+                # Get the thermal health data
+                if self._urls['Thermal']:
+                    logging.debug("Target {0}: Get the thermal health data.".format(self._target))
+                    thermal_data = self.connect_server(self._urls['Thermal'])
+                    if thermal_data:
+                        for fan in thermal_data['Fans']:
+                            fan_name = fan.get('Name', 'unknown')
+                            current_labels = {'type': 'fan', 'name': fan_name}
+                            current_labels.update(self._labels)
+                            fan_health = math.nan
+                            fan_status = dict((k.lower(),v) for k,v in fan['Status'].items()) # convert to lower case because there are differences per vendor
+                            if 'state' in fan_status:
+                                if fan_status['state'] != 'absent':
+                                    if 'health' in fan_status:
+                                        fan_health = math.nan if fan_status['health'] is None or fan_status['health'] == '' else self._status[fan_status['health'].lower()]
+                                    elif 'state' in fan_status:
+                                        fan_health = math.nan if fan_status['state'] is None else self._status[fan_status['state'].lower()]
+
+                            if fan_health is math.nan: 
+                                logging.warning("Target {0}, Host {1}, Model {2}, Fan {3}: No health data found.".format(self._target, self._host,self._model, fan['Name']))
+
+                            health_metrics.add_sample('redfish_health', value=fan_health, labels=current_labels)
+                else:
+                    logging.warning("Target {0}: No Thermal URL provided! Cannot get thermal data!".format(self._target))
+
+                # Export the memory data
+                if self._urls['Memory']:
+                    logging.debug("Target {0}: Get the Memory data.".format(self._target))
+
+                    memory_collection = self.connect_server(self._urls['Memory'])
+                    if memory_collection:
+                        mem_metrics_correctable = GaugeMetricFamily('redfish_memory_correctable','Server Monitoring Memory Data for correctable errors',labels=self._labels)
+                        mem_metrics_unorrectable = GaugeMetricFamily('redfish_memory_uncorrectable','Server Monitoring Memory Data for uncorrectable errors',labels=self._labels)
+                        for dimm_url in memory_collection['Members']:
+                            dimm_info = self.connect_server(dimm_url['@odata.id'])
+                            current_labels = {'type': 'memory', 'name': dimm_info['Name'], 'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': dimm_info['Manufacturer']}
+                            current_labels.update(self._labels)
+                            dimm_status = math.nan
+                            if 'ErrorCorrection' in dimm_info:
+                                current_labels.update({'dimm_error_correction': dimm_info['ErrorCorrection']})
+                            if type(dimm_info['Status']) == str:
+                                dimm_status = self._status[dimm_info['Status'].lower()]
+                            else:
+                                if 'Health' in dimm_info['Status']:
+                                    dimm_status = math.nan if dimm_info['Status']['Health'] is None else self._status[dimm_info['Status']['Health'].lower()]
+                                elif 'State' in dimm_info['Status']:
+                                    dimm_status = math.nan if dimm_info['Status']['State'] is None else self._status[dimm_info['Status']['State'].lower()]
+
+                            if dimm_status is math.nan: 
+                                logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: No health data found.".format(self._target, self._host,self._model, dimm_info['Name']))
+                            
+                            health_metrics.add_sample('redfish_health', value=dimm_status, labels=current_labels)
+
+                            if 'Metrics' in dimm_info:
+                                dimm_metrics = self.connect_server(dimm_info['Metrics']['@odata.id'])
+                                correctable_ecc_error = math.nan if dimm_metrics['HealthData']['AlarmTrips']['CorrectableECCError'] is None else int(dimm_metrics['HealthData']['AlarmTrips']['CorrectableECCError'])
+                                uncorrectable_ecc_error = math.nan if dimm_metrics['HealthData']['AlarmTrips']['UncorrectableECCError'] is None else int(dimm_metrics['HealthData']['AlarmTrips']['UncorrectableECCError'])
+                                mem_metrics_correctable.add_sample('redfish_memory_correctable', value=correctable_ecc_error, labels=current_labels)
+                                mem_metrics_unorrectable.add_sample('redfish_memory_uncorrectable', value=uncorrectable_ecc_error, labels=current_labels)
+                            else:
+                                logging.warning("Target {0}, Host {1}, Model {2}: Dimm {3}: No Dimm Metrics found.".format(self._target, self._host,self._model, dimm_info['Name']))
+                        
+                        yield mem_metrics_correctable
+                        yield mem_metrics_unorrectable
+                else:
+                    logging.warning("Target {0}: No Memory URL provided! Cannot get memory data!".format(self._target))
+
+                yield health_metrics
+
+                scrape_metrics = GaugeMetricFamily('redfish_scrape_duration_seconds','Server Monitoring redfish scrabe duration in seconds',labels=self._labels)
+                scrape_metrics.add_sample('redfish_scrape_duration_seconds', value=round(time.time() - self._start_time,2), labels=self._labels)
+                yield scrape_metrics
+
+            # Get the firmware information
+            if self._firmware:
+                logging.debug("Target {0}: Get the firmware information.".format(self._target))
+
+                fw_collection = self.connect_server("/redfish/v1/UpdateService/FirmwareInventory")
+                if fw_collection:
+                    fw_metrics = GaugeMetricFamily('server_monitoring_fwdata','Server Monitoring Firmware Data',labels=self._labels)
+                    for fw_member in fw_collection['Members']:
+                        fw_member_url = fw_member['@odata.id']
+                        if (search(".*Dell.*", self._manufacturer) and ("Installed" in fw_member_url)) or not search(".*Dell.*", self._manufacturer):
+                            server_response = self.connect_server(fw_member_url)
+                            name = server_response['Name'].split(",",1)[0]
+                            if 'Version' in server_response:
+                                version = server_response['Version']
+                                if version != "N/A":
+                                    current_labels = {'name': name, 'version': version}
+                                    current_labels.update(self._labels)
+                                    fw_metrics.add_sample('redfish_version', value=1, labels=current_labels)
+
+                    yield fw_metrics
+                else:
+                    logging.warning("Target {0}: Cannot get Firmware data!".format(self._target))
+
+        except Exception as err:
+            logging.error("Target {0}: An exception occured: {1}".format(self._target, err))
+        
+
+        finally:
+            logging.debug("Target {0}: Deleting session with server {1}".format(self._target, self._host))
+
+            if self._auth_token:
+                session_url = "https://{0}{1}".format(self._target, self._session_url)
+                headers = {'x-auth-token': self._auth_token}
+
+                logging.debug("Target {0}: Using URL {1}".format(self._target, session_url))
+
+                response = requests.delete(session_url, verify=False, timeout=self._timeout, headers=headers)
+                response.close()
+
+                if response:
+                    logging.info("Target {0}: Session deleted successfully.".format(self._target))
+                else:
+                    logging.warning("Target {0}: Failed to delete session with server {1}".format(self._target, self._host))
+                    logging.warning("Target {0}: Token: {1}".format(self._target, self._auth_token))
+
             else:
-                logging.warning("Target {0}: Cannot get Firmware data!".format(self._target))
-
-    def __del__(self):
-        logging.debug("Target {0}: Deleting session with server {1}".format(self._target, self._host))
-
-        if self._auth_token == "":
-            logging.debug("Target {0}: No session existing with server {1}".format(self._target, self._host))
-            return
-
-        session_url = "https://{0}{1}".format(self._target, self._session_url)
-        headers = {'x-auth-token': self._auth_token}
-
-        logging.debug("Target {0}: Using URL {1}".format(self._target, session_url))
-
-        response = requests.request("DELETE", session_url, verify=False, timeout=self._timeout, headers=headers)
-        response.close()
-
-        if response:
-            logging.info("Target {0}: Session deleted successfully.".format(self._target))
-        else:
-            logging.warning("Target {0}: Failed to delete session with server {1}!".format(self._target, self._host))
-            logging.warning("Target {0}: Token: {1}".format(self._target, self._auth_token))
+                logging.debug("Target {0}: No session existing with server {1}".format(self._target, self._host))
+                return

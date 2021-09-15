@@ -89,8 +89,7 @@ class RedfishMetricsCollector(object):
                         self._session_url = result.json()['@odata.id']
             else:
                 logging.warning("Target {0}: Failed to get a session from server {1}!".format(self._target, self._host))
-                self._basic_auth = True
-                self._redfish_up = 1
+                self._redfish_up = 0
         else:
             logging.warning("Target {0}: No data received from server {1}!".format(self._target, self._host))
             self._redfish_up = 0
@@ -228,7 +227,6 @@ class RedfishMetricsCollector(object):
 
     def collect(self):
 
-        logging.info("Target {0}: Collecting data ...".format(self._target))
         try:
             if self._redfish_up == 1:
                 self._get_labels()
@@ -245,6 +243,7 @@ class RedfishMetricsCollector(object):
             if self._redfish_up == 0:
                 return
 
+            logging.info("Target {0}: Collecting data ...".format(self._target))
             if self._health:
                 health_metrics = GaugeMetricFamily('redfish_health','Server Monitoring Health Data',labels=self._labels)
                 powerstate_metrics = GaugeMetricFamily('redfish_powerstate','Server Monitoring Power State Data',labels=self._labels)
@@ -463,8 +462,10 @@ class RedfishMetricsCollector(object):
 
                 yield health_metrics
 
+                duration = round(time.time() - self._start_time,2)
+                logging.info("Target {0}: Scrape duration: {1} seconds".format(self._target, duration))
                 scrape_metrics = GaugeMetricFamily('redfish_scrape_duration_seconds','Server Monitoring redfish scrabe duration in seconds',labels=self._labels)
-                scrape_metrics.add_sample('redfish_scrape_duration_seconds', value=round(time.time() - self._start_time,2), labels=self._labels)
+                scrape_metrics.add_sample('redfish_scrape_duration_seconds', value=duration, labels=self._labels)
                 yield scrape_metrics
 
             # Get the firmware information

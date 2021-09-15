@@ -68,6 +68,7 @@ class RedfishMetricsCollector(object):
                 sessions_url = "https://{0}{1}".format(self._target, session_service['Sessions']['@odata.id'])
                 session_data = {"UserName": self._username, "Password": self._password}
                 self._session.auth = None
+                result = ""
 
                 # Try to get a session
                 try:

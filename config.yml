@@ -4,4 +4,3 @@ password: 'calvin'
 timeout: 40
 job: 'redfish/bb'
 app_env: dev
-max_retries: 3

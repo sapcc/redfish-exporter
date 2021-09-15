@@ -63,7 +63,6 @@ password: <your password>
 timeout: 40
 job: 'redfish/myjob'
 app_env: dev
-max_retries: 3
 ```
 
 ## Exported Metrics

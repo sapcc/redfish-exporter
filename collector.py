@@ -18,7 +18,6 @@ class RedfishMetricsCollector(object):
         self._password = pwd
 
         self._timeout = int(os.getenv('TIMEOUT', config['timeout']))
-        self._max_retries = config['max_retries']
         self._labels = {'host': self._host, 'model': "unknown", 'serial': "unknown"}
         self._redfish_up = 0
         self._response_time = 0
@@ -104,7 +103,6 @@ class RedfishMetricsCollector(object):
         url = "https://{0}{1}".format(self._target, command)
         with requests.Session() as s:
             s.verify = False
-            s.timeout = self._timeout
             s.headers.update({'charset': 'utf-8'})
 
             if noauth:
@@ -116,43 +114,40 @@ class RedfishMetricsCollector(object):
                 logging.debug("Target {0}: Using auth token".format(self._target))
                 s.headers.update({'X-Auth-Token': self._auth_token})
 
-            for attempt in range(1, self._max_retries+1):        
+            logging.debug("Target {0}: Using URL {1}".format(self._target, url))
+            try:
+                req = s.get(url, timeout = self._timeout)
+                req.raise_for_status()
 
-                try:
-                    logging.debug("Target {0}: Using URL {1}, attempt {2}".format(self._target, url, attempt))
-                    req = s.get(url)
-                    req.raise_for_status()
-
-                except requests.exceptions.HTTPError as err:
-                    self._last_http_code = err.response.status_code
-                    if err.response.status_code == 401:
-                        logging.error("Target {0}: Authorization Error: Wrong job provided or user/password set wrong on server {1}: {2}".format(self._target, self._host, err))
-                        break
-                    else:
-                        logging.error("Target {0}: HTTP Error on server {1}: {2}".format(self._target, self._host, err))
-                        break
-                except requests.exceptions.ConnectTimeout:
-                    logging.error("Target {0}: Timeout while connecting to {1}".format(self._target, self._host))
-                    self._last_http_code = 408
-                    break
-                except requests.exceptions.ReadTimeout:
-                    logging.error("Target {0}: Timeout while reading data from {1}! Retry #{2}".format(self._target, self._host, attempt))
-                    self._last_http_code = 408
-                except requests.exceptions.ConnectionError as excptn:
-                    logging.error("Target {0}: Unable to connect to {1}: {2}".format(self._target, self._host, excptn))
-                    self._last_http_code = 444
-                    break
-                except:
-                    logging.error("Target {0}: Unexpected error: {1}".format(self._target, sys.exc_info()[0]))
-                    self._last_http_code = 500
+            except requests.exceptions.HTTPError as err:
+                self._last_http_code = err.response.status_code
+                if err.response.status_code == 401:
+                    logging.error("Target {0}: Authorization Error: Wrong job provided or user/password set wrong on server {1}: {2}".format(self._target, self._host, err))
                 else:
-                    self._last_http_code = req.status_code
-                    break
+                    logging.error("Target {0}: HTTP Error on server {1}: {2}".format(self._target, self._host, err))
+
+            except requests.exceptions.ConnectTimeout:
+                logging.error("Target {0}: Timeout while connecting to {1}".format(self._target, self._host))
+                self._last_http_code = 408
+
+            except requests.exceptions.ReadTimeout:
+                logging.error("Target {0}: Timeout while reading data from {1}".format(self._target, self._host))
+                self._last_http_code = 408
+
+            except requests.exceptions.ConnectionError as excptn:
+                logging.error("Target {0}: Unable to connect to {1}: {2}".format(self._target, self._host, excptn))
+                self._last_http_code = 444
+
+            except:
+                logging.error("Target {0}: Unexpected error: {1}".format(self._target, sys.exc_info()[0]))
+                self._last_http_code = 500
 
             else:
-                msg = "Target {0}: Maximum number of retries exceeded!".format(self._target)
-                logging.error(msg)
-                self._last_http_code = 408
+                self._last_http_code = req.status_code
+
+            finally:
+                logging.debug("Target {0}: Closing requests session.".format(self._target))
+                s.close()
 
             if req != "":
                 req_text = ""
@@ -180,7 +175,6 @@ class RedfishMetricsCollector(object):
                             else:
                                 pass
 
-            s.close()
             request_duration = round(time.time() - request_start,2)
             logging.debug("Target {0}: Request duration: {1}".format(self._target, request_duration))
             return server_response

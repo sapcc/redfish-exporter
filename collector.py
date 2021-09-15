@@ -66,19 +66,17 @@ class RedfishMetricsCollector(object):
             if self._last_http_code == 200:
                 sessions_url = "https://{0}{1}".format(self._target, session_service['Sessions']['@odata.id'])
                 session_data = {"UserName": self._username, "Password": self._password}
-                headers = {'charset': 'utf-8', 'content-type': 'application/json'}
+                self._session.auth = None
 
                 # Try to get a session
                 try:
-                    result = requests.post(sessions_url, json=session_data, verify=False, timeout=self._timeout, headers=headers)
+                    result = self._session.post(sessions_url, json=session_data, verify=False, timeout=self._timeout)
                     result.raise_for_status()
                 except requests.exceptions.HTTPError as err:
                     logging.warning("Target {0}: No session received from server {1}: {2}!".format(self._target, self._host, err))
                     logging.warning("Target {0}: Switching to basic authentication.".format(self._target))
                     self._basic_auth = True
                     self._redfish_up = 1
-                finally:
-                    result.close()
 
                 if result:
                     if result.status_code in [200,201]:
@@ -111,6 +109,7 @@ class RedfishMetricsCollector(object):
             logging.debug("Target {0}: Using existing session.".format(self._target))
         self._session.verify = False
         self._session.headers.update({'charset': 'utf-8'})
+        self._session.headers.update({'content-type': 'application/json'})
 
         if noauth:
             logging.debug("Target {0}: Using no auth".format(self._target))
@@ -224,6 +223,7 @@ class RedfishMetricsCollector(object):
 
     def collect(self):
 
+        logging.info("Target {0}: Collecting data ...".format(self._target))
         try:
             if self._redfish_up == 1:
                 self._get_labels()

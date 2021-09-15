@@ -49,6 +49,7 @@ class RedfishMetricsCollector(object):
         self._session_url = ""
         self._auth_token = ""
         self._basic_auth = False
+        self._session = ""
         self._get_session()
        
 
@@ -95,89 +96,91 @@ class RedfishMetricsCollector(object):
         logging.captureWarnings(True)
         
         req = ""
+        req_text = ""
         server_response = ""
         self._last_http_code = 200
         request_duration = 0
         request_start = time.time()
 
         url = "https://{0}{1}".format(self._target, command)
-        with requests.Session() as s:
-            s.verify = False
-            s.headers.update({'charset': 'utf-8'})
 
-            if noauth:
-                logging.debug("Target {0}: Using no auth".format(self._target))
-            elif basic_auth or self._basic_auth:
-                s.auth = (self._username, self._password)
-                logging.debug("Target {0}: Using basic auth with user {1}".format(self._target, self._username))
+        # check if we already established a session with the server
+        if not self._session:
+            self._session = requests.Session()
+        else:
+            logging.debug("Target {0}: Using existing session.".format(self._target))
+        self._session.verify = False
+        self._session.headers.update({'charset': 'utf-8'})
+
+        if noauth:
+            logging.debug("Target {0}: Using no auth".format(self._target))
+        elif basic_auth or self._basic_auth:
+            self._session.auth = (self._username, self._password)
+            logging.debug("Target {0}: Using basic auth with user {1}".format(self._target, self._username))
+        else:
+            logging.debug("Target {0}: Using auth token".format(self._target))
+            self._session.auth = None
+            self._session.headers.update({'X-Auth-Token': self._auth_token})
+
+        logging.debug("Target {0}: Using URL {1}".format(self._target, url))
+        try:
+            req = self._session.get(url, timeout = self._timeout)
+            req.raise_for_status()
+
+        except requests.exceptions.HTTPError as err:
+            self._last_http_code = err.response.status_code
+            if err.response.status_code == 401:
+                logging.error("Target {0}: Authorization Error: Wrong job provided or user/password set wrong on server {1}: {2}".format(self._target, self._host, err))
             else:
-                logging.debug("Target {0}: Using auth token".format(self._target))
-                s.headers.update({'X-Auth-Token': self._auth_token})
+                logging.error("Target {0}: HTTP Error on server {1}: {2}".format(self._target, self._host, err))
 
-            logging.debug("Target {0}: Using URL {1}".format(self._target, url))
-            try:
-                req = s.get(url, timeout = self._timeout)
-                req.raise_for_status()
+        except requests.exceptions.ConnectTimeout:
+            logging.error("Target {0}: Timeout while connecting to {1}".format(self._target, self._host))
+            self._last_http_code = 408
 
-            except requests.exceptions.HTTPError as err:
-                self._last_http_code = err.response.status_code
-                if err.response.status_code == 401:
-                    logging.error("Target {0}: Authorization Error: Wrong job provided or user/password set wrong on server {1}: {2}".format(self._target, self._host, err))
-                else:
-                    logging.error("Target {0}: HTTP Error on server {1}: {2}".format(self._target, self._host, err))
+        except requests.exceptions.ReadTimeout:
+            logging.error("Target {0}: Timeout while reading data from {1}".format(self._target, self._host))
+            self._last_http_code = 408
 
-            except requests.exceptions.ConnectTimeout:
-                logging.error("Target {0}: Timeout while connecting to {1}".format(self._target, self._host))
-                self._last_http_code = 408
+        except requests.exceptions.ConnectionError as excptn:
+            logging.error("Target {0}: Unable to connect to {1}: {2}".format(self._target, self._host, excptn))
+            self._last_http_code = 444
 
-            except requests.exceptions.ReadTimeout:
-                logging.error("Target {0}: Timeout while reading data from {1}".format(self._target, self._host))
-                self._last_http_code = 408
+        except:
+            logging.error("Target {0}: Unexpected error: {1}".format(self._target, sys.exc_info()[0]))
+            self._last_http_code = 500
 
-            except requests.exceptions.ConnectionError as excptn:
-                logging.error("Target {0}: Unable to connect to {1}: {2}".format(self._target, self._host, excptn))
-                self._last_http_code = 444
+        else:
+            self._last_http_code = req.status_code
+
+        if req != "":
+            try: 
+                req_text = req.json()
 
             except:
-                logging.error("Target {0}: Unexpected error: {1}".format(self._target, sys.exc_info()[0]))
-                self._last_http_code = 500
+                logging.debug("Target {0}: No json data received.".format(self._target))
 
+            # req will evaluate to True if the status code was between 200 and 400 and False otherwise.
+            if req:
+                server_response = req_text
+
+            # if the request fails the server might give a hint in the ExtendedInfo field
             else:
-                self._last_http_code = req.status_code
+                if req_text:
+                    logging.error("Target {0}: {1}: {2}".format(self._target, req_text['error']['code'], req_text['error']['message']))
+                    if '@Message.ExtendedInfo' in req_text['error']:
+                        if type(req_text['error']['@Message.ExtendedInfo']) == list:
+                            if 'Message' in req_text['error']['@Message.ExtendedInfo'][0]:
+                                logging.error("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo'][0]['Message']))
+                        elif type(req_text['error']['@Message.ExtendedInfo']) == dict:
+                            if 'Message' in req_text['error']['@Message.ExtendedInfo']:
+                                logging.error("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo']['Message']))
+                        else:
+                            pass
 
-            finally:
-                logging.debug("Target {0}: Closing requests session.".format(self._target))
-                s.close()
-
-            if req != "":
-                req_text = ""
-                try: 
-                    req_text = req.json()
-
-                except:
-                    logging.debug("Target {0}: No json data received.".format(self._target))
-
-                # req will evaluate to True if the status code was between 200 and 400 and False otherwise.
-                if req:
-                    server_response = req_text
-
-                # if the request fails the server might give a hint in the ExtendedInfo field
-                else:
-                    if req_text:
-                        logging.error("Target {0}: {1}: {2}".format(self._target, req_text['error']['code'], req_text['error']['message']))
-                        if '@Message.ExtendedInfo' in req_text['error']:
-                            if type(req_text['error']['@Message.ExtendedInfo']) == list:
-                                if 'Message' in req_text['error']['@Message.ExtendedInfo'][0]:
-                                    logging.error("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo'][0]['Message']))
-                            elif type(req_text['error']['@Message.ExtendedInfo']) == dict:
-                                if 'Message' in req_text['error']['@Message.ExtendedInfo']:
-                                    logging.error("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo']['Message']))
-                            else:
-                                pass
-
-            request_duration = round(time.time() - request_start,2)
-            logging.debug("Target {0}: Request duration: {1}".format(self._target, request_duration))
-            return server_response
+        request_duration = round(time.time() - request_start,2)
+        logging.debug("Target {0}: Request duration: {1}".format(self._target, request_duration))
+        return server_response
 
 
     def _get_labels(self):
@@ -506,4 +509,7 @@ class RedfishMetricsCollector(object):
 
             else:
                 logging.debug("Target {0}: No session existing with server {1}".format(self._target, self._host))
-                return
+
+            if self._session:
+                logging.info("Target {0}: Closing requests session.".format(self._target))
+                self._session.close()

@@ -64,6 +64,7 @@ class RedfishMetricsCollector(object):
             logging.info("Target {0}: data received from server {1}.".format(self._target, self._host))
             session_service = self.connect_server(server_response['SessionService']['@odata.id'], basic_auth=True)
             if self._last_http_code == 200:
+                self._redfish_up = 1
                 sessions_url = "https://{0}{1}".format(self._target, session_service['Sessions']['@odata.id'])
                 session_data = {"UserName": self._username, "Password": self._password}
                 self._session.auth = None
@@ -72,20 +73,24 @@ class RedfishMetricsCollector(object):
                 try:
                     result = self._session.post(sessions_url, json=session_data, verify=False, timeout=self._timeout)
                     result.raise_for_status()
+
+                except requests.exceptions.ConnectionError as err:
+                    logging.error("Target {0}: Error getting a session from server {1}: {2}".format(self._target, self._host, err))
+                    self._basic_auth = True
+
                 except requests.exceptions.HTTPError as err:
-                    logging.warning("Target {0}: No session received from server {1}: {2}!".format(self._target, self._host, err))
+                    logging.warning("Target {0}: No session received from server {1}: {2}".format(self._target, self._host, err))
                     logging.warning("Target {0}: Switching to basic authentication.".format(self._target))
                     self._basic_auth = True
-                    self._redfish_up = 1
 
                 if result:
                     if result.status_code in [200,201]:
                         self._auth_token = result.headers['X-Auth-Token']
                         self._session_url = result.json()['@odata.id']
-                        self._redfish_up = 1
             else:
                 logging.warning("Target {0}: Failed to get a session from server {1}!".format(self._target, self._host))
-                self._redfish_up = 0
+                self._basic_auth = True
+                self._redfish_up = 1
         else:
             logging.warning("Target {0}: No data received from server {1}!".format(self._target, self._host))
             self._redfish_up = 0

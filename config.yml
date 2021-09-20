@@ -1,6 +1,6 @@
 listen_port: 9200
 username: 'root'
 password: 'calvin'
-timeout: 40
+timeout: 10
 job: 'redfish/bb'
 app_env: dev

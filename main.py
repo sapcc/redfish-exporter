@@ -9,10 +9,7 @@ from wsgiref.simple_server import make_server, WSGIServer, WSGIRequestHandler
 import socket
 import os
 import warnings
-import threading
 from socketserver import ThreadingMixIn
-
-
 class _SilentHandler(WSGIRequestHandler):
     """WSGI handler that does not log requests."""
 
@@ -56,13 +53,18 @@ def enable_logging():
     else:
         logger.setLevel('DEBUG')
     format = '%(asctime)-15s %(process)d %(levelname)s %(filename)s:%(lineno)d %(message)s'
-    logging.basicConfig(stream=sys.stdout, format=format)
+    if args.logging:
+        logging.basicConfig(filename=args.logging, format=format)
+    else:
+        logging.basicConfig(stream=sys.stdout, format=format)
 
 if __name__ == '__main__':
     # command line options
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c", "--config", help="Specify config yaml file", metavar="FILE", required=False, default="config.yml")
+    parser.add_argument(
+        "-l", "--logging", help="Log all messages to a file", metavar="FILE", required=False)
     args = parser.parse_args()
 
     warnings.filterwarnings("ignore")

@@ -9,14 +9,11 @@ from prometheus_client.exposition import CONTENT_TYPE_LATEST
 from prometheus_client.exposition import generate_latest
 
 from collector import RedfishMetricsCollector
-from memory_profiler import profile
-
 class welcomePage:
 
     def on_get(self, req, resp):
         resp.body = '{"message": "This is the redfish exporter.\nUse /redfish to retrieve health metrics.\nUse /firmware to retrieve firmware version metrics."}'
 
-@profile
 class metricsHandler:
     def __init__(self, config, firmware = False, health = False):
         self._config = config

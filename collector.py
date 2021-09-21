@@ -54,7 +54,6 @@ class RedfishMetricsCollector(object):
         self._basic_auth = False
         self._session = ""
        
-
     def get_session(self):
         # Get the url for the server info and messure the response time
         logging.info("Target {0}: Connecting to server {1}".format(self._target, self._host))

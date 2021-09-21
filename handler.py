@@ -9,12 +9,14 @@ from prometheus_client.exposition import CONTENT_TYPE_LATEST
 from prometheus_client.exposition import generate_latest
 
 from collector import RedfishMetricsCollector
+from memory_profiler import profile
 
 class welcomePage:
 
     def on_get(self, req, resp):
         resp.body = '{"message": "This is the redfish exporter.\nUse /redfish to retrieve health metrics.\nUse /firmware to retrieve firmware version metrics."}'
 
+@profile
 class metricsHandler:
     def __init__(self, config, firmware = False, health = False):
         self._config = config
@@ -43,19 +45,21 @@ class metricsHandler:
 
         self._host = self._target
         if ip_re.match(self._target):
+            logging.debug("Target {0}: Target is an IP Address.".format(self._target))
             try:
-                self._host = socket.gethostbyaddr(self._target)[0]
-
-            except socket.herror as excptn:
-                msg = "Target {0}: Reverse DNS lookup failed: {1}".format(self._target,excptn)
-                logging.warning(msg)
+                host = socket.gethostbyaddr(self._target)[0]
+                if host:
+                    self._host = host
+            except socket.herror as err:
+                logging.warning("Target {0}: Reverse DNS lookup failed: {1}".format(self._target,err))
         else:
+            logging.debug("Target {0}: Target is a hostname.".format(self._target))
             try:
-                self._target = socket.gethostbyname(self._host)
-
-            except socket.gaierror as excptn:
-                msg = "Target {0}: DNS lookup failed: {1}".format(self._target,excptn)
-                logging.warning(msg)
+                target = socket.gethostbyname(self._host)
+                if target:
+                    self._target = target
+            except socket.gaierror as err:
+                logging.warning("Target {0}: DNS lookup failed: {1}".format(self._target,err))
 
         usr_env_var = self._job.replace("/","_").upper() + "_USERNAME"
         pwd_env_var = self._job.replace("/","_").upper() + "_PASSWORD"
@@ -83,7 +87,9 @@ class metricsHandler:
             firmware = self._firmware,
             health = self._health
         )
-
+        
+        registry.get_session()
+        
         collected_metric = generate_latest(registry)
 
         resp.body = collected_metric

@@ -11,12 +11,11 @@ RUN mkdir /${FOLDERNAME}
 
 WORKDIR /${FOLDERNAME}
 
+RUN pip3 install --upgrade pip
 COPY requirements.txt /${FOLDERNAME}
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY *.py /${FOLDERNAME}/
 COPY config.yml /${FOLDERNAME}/
-
-ENTRYPOINT [ "python3", "-u", "./main.py"]
 
 LABEL source_repository="https://github.com/sapcc/redfish-exporter"

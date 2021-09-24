@@ -90,6 +90,8 @@ class RedfishMetricsCollector(object):
                     if result.status_code in [200,201]:
                         self._auth_token = result.headers['X-Auth-Token']
                         self._session_url = result.json()['@odata.id']
+                        logging.debug("Target {0}: Got a auth token from server {1}!".format(self._target, self._host))
+
             else:
                 logging.warning("Target {0}: Failed to get a session from server {1}!".format(self._target, self._host))
                 self._redfish_up = 0

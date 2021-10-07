@@ -241,9 +241,6 @@ class RedfishMetricsCollector(object):
 
         if not processor_collection:
             return
-        powerstate_metrics = GaugeMetricFamily('redfish_powerstate','Server Monitoring Power State Data',labels=self._labels)
-        powerstate_metrics.add_sample('redfish_powerstate', value=self._powerstate , labels=self._labels)
-        yield powerstate_metrics
         for processor in processor_collection['Members']:
             processor_data = self.connect_server(processor['@odata.id'])
             if not processor_data:
@@ -411,7 +408,7 @@ class RedfishMetricsCollector(object):
             dimm_info = self.connect_server(dimm_url['@odata.id'])
             if not dimm_info:
                 continue
-            current_labels = {'type': 'memory', 'name': dimm_info['Name'], 'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': dimm_info['Manufacturer']}
+            current_labels = {'type': 'memory', 'name': dimm_info['Name']}
             current_labels.update(self._labels)
             dimm_status = math.nan
             if 'ErrorCorrection' in dimm_info:
@@ -426,6 +423,8 @@ class RedfishMetricsCollector(object):
 
             if dimm_status is math.nan: 
                 logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: No health data found.".format(self._target, self._host,self._model, dimm_info['Name']))
+            else:
+                current_labels.update({'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': dimm_info['Manufacturer']})
             
             self._health_metrics.add_sample('redfish_health', value=dimm_status, labels=current_labels)
 
@@ -458,6 +457,10 @@ class RedfishMetricsCollector(object):
             if self._redfish_up == 0:
                 return
 
+            powerstate_metrics = GaugeMetricFamily('redfish_powerstate','Server Monitoring Power State Data',labels=self._labels)
+            powerstate_metrics.add_sample('redfish_powerstate', value=self._powerstate , labels=self._labels)
+            yield powerstate_metrics
+            
             logging.info("Target {0}: Collecting data ...".format(self._target))
             if self._health:
                 self._health_metrics = GaugeMetricFamily('redfish_health','Server Monitoring Health Data',labels=self._labels)

@@ -410,23 +410,23 @@ class RedfishMetricsCollector(object):
                 continue
             current_labels = {'type': 'memory', 'name': dimm_info['Name']}
             current_labels.update(self._labels)
-            dimm_status = math.nan
-            if 'ErrorCorrection' in dimm_info:
-                current_labels.update({'dimm_error_correction': dimm_info['ErrorCorrection']})
             if type(dimm_info['Status']) == str:
-                dimm_status = self._status[dimm_info['Status'].lower()]
+                dimm_health = self._status[dimm_info['Status'].lower()]
             else:
-                if 'Health' in dimm_info['Status']:
-                    dimm_status = math.nan if dimm_info['Status']['Health'] is None else self._status[dimm_info['Status']['Health'].lower()]
-                elif 'State' in dimm_info['Status']:
-                    dimm_status = math.nan if dimm_info['Status']['State'] is None else self._status[dimm_info['Status']['State'].lower()]
+                dimm_health = math.nan
+                dimm_status = dict((k.lower(),v) for k,v in dimm_info['Status'].items()) # convert to lower case because there are differences per vendor
+                if 'state' in dimm_status:
+                    if dimm_status['state'].lower() != 'absent':
+                        current_labels.update({'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': dimm_info['Manufacturer']})
+                        if 'health' in dimm_status:
+                            dimm_health = math.nan if dimm_info['Status']['Health'] is None else self._status[dimm_info['Status']['Health'].lower()]
+                        elif 'state' in dimm_status:
+                            dimm_health = math.nan if dimm_info['Status']['State'] is None else self._status[dimm_info['Status']['State'].lower()]
 
-            if dimm_status is math.nan: 
+            if dimm_health is math.nan: 
                 logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: No health data found.".format(self._target, self._host,self._model, dimm_info['Name']))
-            else:
-                current_labels.update({'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': dimm_info['Manufacturer']})
             
-            self._health_metrics.add_sample('redfish_health', value=dimm_status, labels=current_labels)
+            self._health_metrics.add_sample('redfish_health', value=dimm_health, labels=current_labels)
 
             if 'Metrics' in dimm_info:
                 dimm_metrics = self.connect_server(dimm_info['Metrics']['@odata.id'])

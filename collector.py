@@ -66,7 +66,6 @@ class RedfishMetricsCollector(object):
             logging.info("Target {0}: data received from server {1}.".format(self._target, self._host))
             session_service = self.connect_server(server_response['SessionService']['@odata.id'], basic_auth=True)
             if self._last_http_code == 200:
-                self._redfish_up = 1
                 sessions_url = "https://{0}{1}".format(self._target, session_service['Sessions']['@odata.id'])
                 session_data = {"UserName": self._username, "Password": self._password}
                 self._session.auth = None
@@ -91,13 +90,13 @@ class RedfishMetricsCollector(object):
                         self._auth_token = result.headers['X-Auth-Token']
                         self._session_url = result.json()['@odata.id']
                         logging.debug("Target {0}: Got a auth token from server {1}!".format(self._target, self._host))
+                        self._redfish_up = 1
 
             else:
                 logging.warning("Target {0}: Failed to get a session from server {1}!".format(self._target, self._host))
-                self._redfish_up = 0
+
         else:
             logging.warning("Target {0}: No data received from server {1}!".format(self._target, self._host))
-            self._redfish_up = 0
     
     def connect_server(self, command, noauth = False, basic_auth = False):
         logging.captureWarnings(True)
@@ -175,14 +174,14 @@ class RedfishMetricsCollector(object):
             # if the request fails the server might give a hint in the ExtendedInfo field
             else:
                 if req_text:
-                    logging.error("Target {0}: {1}: {2}".format(self._target, req_text['error']['code'], req_text['error']['message']))
+                    logging.debug("Target {0}: {1}: {2}".format(self._target, req_text['error']['code'], req_text['error']['message']))
                     if '@Message.ExtendedInfo' in req_text['error']:
                         if type(req_text['error']['@Message.ExtendedInfo']) == list:
                             if 'Message' in req_text['error']['@Message.ExtendedInfo'][0]:
-                                logging.error("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo'][0]['Message']))
+                                logging.debug("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo'][0]['Message']))
                         elif type(req_text['error']['@Message.ExtendedInfo']) == dict:
                             if 'Message' in req_text['error']['@Message.ExtendedInfo']:
-                                logging.error("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo']['Message']))
+                                logging.debug("Target {0}: {1}".format(self._target, req_text['error']['@Message.ExtendedInfo']['Message']))
                         else:
                             pass
 
@@ -442,9 +441,6 @@ class RedfishMetricsCollector(object):
     def collect(self):
 
         try:
-            if self._redfish_up == 1:
-                self._get_labels()
-
             # Export the up and response metrics
             up_metrics = GaugeMetricFamily('redfish_up','Server Monitoring for redfish availability',labels=self._labels)
             response_metrics = GaugeMetricFamily('redfish_response_duration_seconds','Server Monitoring for redfish response time',labels=self._labels)
@@ -457,6 +453,7 @@ class RedfishMetricsCollector(object):
             if self._redfish_up == 0:
                 return
 
+            self._get_labels()
             powerstate_metrics = GaugeMetricFamily('redfish_powerstate','Server Monitoring Power State Data',labels=self._labels)
             powerstate_metrics.add_sample('redfish_powerstate', value=self._powerstate , labels=self._labels)
             yield powerstate_metrics

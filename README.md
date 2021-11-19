@@ -21,12 +21,15 @@ Dell PowerEdge R840
 
 Lenovo ThinkSystem SR950
 
+HPE DL360 Gen10
+HPE DL560 Gen10
+
 ## Example Call
 
 If you are logged into the POD running the exporter, you can call
 
 ```bash
-curl http://localhost:9200/redfish?target=node001r-bm001.cc.eu-de-1.cloud.sap&job=redfish/myjob
+curl http://localhost:9200/redfish?target=server1.exmapl.com&job=redfish/myjob
 ```
 
 ## Prerequisites and Installation
@@ -39,6 +42,12 @@ pip3 install --no-cache-dir -r requirements.txt
 
 There is also a docker file available to create a docker container to run the exporter.
 
+## Parameters
+
+`-l <logfile>` - all output is written to a logfile.
+`-d` - switches on debugging mode
+`-c <config file>` - you can specify the path to the config file, default is config.yml.
+
 ## The config.yml file
 
 * The **listen_port** is providing the port on which the exporter is waiting to receive calls. It is overwritten by the environment variable **LISTEN_PORT**.
@@ -47,8 +56,6 @@ There is also a docker file available to create a docker container to run the ex
 
     The mapping of job names to environment variables follows a schema: `REDFISH_JOB1_USERNAME` and `REDFISH_JOB1_PASSWORD` would be the variables for example of the first job called `redfish/job1`.
     A slash gets replaced by underscore and everything gets converted to uppercase.
-
-* The **app_env** can be specified in the config file or also via environment variable APP_ENV. If set to `production`, it will only log info messages. For all other values the level will be set to debug.
 
 * The **timeout** parameter specifies the amount of time to wait for an answer from the server. Again this can alos be provided via TIMEOUT environment variable.
 
@@ -62,7 +69,6 @@ username: <your username>
 password: <your password>
 timeout: 40
 job: 'redfish/myjob'
-app_env: dev
 ```
 
 ## Exported Metrics

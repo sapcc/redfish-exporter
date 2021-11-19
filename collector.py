@@ -63,7 +63,7 @@ class RedfishMetricsCollector(object):
         logging.info("Target {0}: Response time: {1} seconds.".format(self._target, self._response_time))
 
         if server_response:
-            logging.info("Target {0}: data received from server {1}.".format(self._target, self._host))
+            logging.debug("Target {0}: data received from server {1}.".format(self._target, self._host))
             session_service = self.connect_server(server_response['SessionService']['@odata.id'], basic_auth=True)
             if self._last_http_code == 200:
                 sessions_url = "https://{0}{1}".format(self._target, session_service['Sessions']['@odata.id'])
@@ -77,7 +77,7 @@ class RedfishMetricsCollector(object):
                     result.raise_for_status()
 
                 except requests.exceptions.ConnectionError as err:
-                    logging.error("Target {0}: Error getting a session from server {1}: {2}".format(self._target, self._host, err))
+                    logging.error("Target {0}: Error getting an auth token from server {1}: {2}".format(self._target, self._host, err))
                     self._basic_auth = True
 
                 except requests.exceptions.HTTPError as err:
@@ -89,7 +89,7 @@ class RedfishMetricsCollector(object):
                     if result.status_code in [200,201]:
                         self._auth_token = result.headers['X-Auth-Token']
                         self._session_url = result.json()['@odata.id']
-                        logging.debug("Target {0}: Got a auth token from server {1}!".format(self._target, self._host))
+                        logging.info("Target {0}: Got an auth token from server {1}!".format(self._target, self._host))
                         self._redfish_up = 1
 
             else:

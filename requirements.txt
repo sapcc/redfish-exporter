@@ -1,5 +1,5 @@
 requests
 prometheus-client
 falcon
-yamlconfig
+yaml
 argparse

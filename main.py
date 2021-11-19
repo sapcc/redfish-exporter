@@ -1,7 +1,7 @@
 from handler import metricsHandler
 from handler import welcomePage
 import argparse
-from yamlconfig import YamlConfig
+import yaml
 import logging
 import sys
 import falcon
@@ -48,11 +48,10 @@ def falcon_app():
 def enable_logging():
     # enable logging
     logger = logging.getLogger()
-    app_environment = os.getenv('APP_ENV', config['app_env']).lower()
-    if app_environment == "production":
-        logger.setLevel('INFO')
-    else:
+    if args.debug:
         logger.setLevel('DEBUG')
+    else:
+        logger.setLevel('INFO')
     format = '%(asctime)-15s %(process)d %(levelname)s %(filename)s:%(lineno)d %(message)s'
     if args.logging:
         logging.basicConfig(filename=args.logging, format=format)
@@ -66,18 +65,20 @@ if __name__ == '__main__':
         "-c", "--config", help="Specify config yaml file", metavar="FILE", required=False, default="config.yml")
     parser.add_argument(
         "-l", "--logging", help="Log all messages to a file", metavar="FILE", required=False)
+    parser.add_argument(
+        "-d", "--debug", help="Debugging mode", action="store_true", required=False)
     args = parser.parse_args()
 
     warnings.filterwarnings("ignore")
 
+    enable_logging()
+
     # get the config
     try:
-        config = YamlConfig(args.config)
+        with open(args.config, 'r') as config_file:
+            config =  yaml.load(config_file.read(), Loader=yaml.FullLoader)
     except FileNotFoundError as e:
         print("Config File not found: {0}".format(e))
         exit(1)
-
-
-    enable_logging()
 
     falcon_app()

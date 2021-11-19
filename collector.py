@@ -413,12 +413,19 @@ class RedfishMetricsCollector(object):
                 dimm_health = math.nan
                 dimm_status = dict((k.lower(),v) for k,v in dimm_info['Status'].items()) # convert to lower case because there are differences per vendor
                 if 'state' in dimm_status:
-                    if dimm_status['state'].lower() != 'absent':
-                        current_labels.update({'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': dimm_info['Manufacturer']})
-                        if 'health' in dimm_status:
-                            dimm_health = math.nan if dimm_info['Status']['Health'] is None else self._status[dimm_info['Status']['Health'].lower()]
-                        elif 'state' in dimm_status:
-                            dimm_health = math.nan if dimm_info['Status']['State'] is None else self._status[dimm_info['Status']['State'].lower()]
+                    if dimm_status['state'].lower() == 'absent':
+                        logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: absent.".format(self._target, self._host,self._model, dimm_info['Name']))
+                        continue
+                    if 'Oem' in dimm_info:
+                        if 'Hpe' in dimm_info['Oem']:
+                            manufacturer = dimm_info['Oem']['Hpe']['VendorName']
+                        else:
+                            manufacturer = dimm_info['Manufacturer']
+                    current_labels.update({'dimm_capacity': str(dimm_info['CapacityMiB']), 'dimm_speed': str(dimm_info['OperatingSpeedMhz']), 'dimm_type': dimm_info['MemoryDeviceType'], 'dimm_manufacturer': manufacturer})
+                    if 'health' in dimm_status:
+                        dimm_health = math.nan if dimm_info['Status']['Health'] is None else self._status[dimm_info['Status']['Health'].lower()]
+                    elif 'state' in dimm_status:
+                        dimm_health = math.nan if dimm_info['Status']['State'] is None else self._status[dimm_info['Status']['State'].lower()]
 
             if dimm_health is math.nan: 
                 logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: No health data found.".format(self._target, self._host,self._model, dimm_info['Name']))
@@ -545,7 +552,7 @@ class RedfishMetricsCollector(object):
         
 
         finally:
-            logging.debug("Target {0}: Deleting session with server {1}".format(self._target, self._host))
+            logging.debug("Target {0}: Deleting Redfish session with server {1}".format(self._target, self._host))
 
             if self._auth_token:
                 session_url = "https://{0}{1}".format(self._target, self._session_url)
@@ -557,13 +564,13 @@ class RedfishMetricsCollector(object):
                 response.close()
 
                 if response:
-                    logging.info("Target {0}: Session deleted successfully.".format(self._target))
+                    logging.info("Target {0}: Redfish Session deleted successfully.".format(self._target))
                 else:
                     logging.warning("Target {0}: Failed to delete session with server {1}".format(self._target, self._host))
                     logging.warning("Target {0}: Token: {1}".format(self._target, self._auth_token))
 
             else:
-                logging.debug("Target {0}: No session existing with server {1}".format(self._target, self._host))
+                logging.debug("Target {0}: No Redfish session existing with server {1}".format(self._target, self._host))
 
             if self._session:
                 logging.info("Target {0}: Closing requests session.".format(self._target))

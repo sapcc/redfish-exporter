@@ -18,7 +18,7 @@ class RedfishMetricsCollector(object):
         self._password = pwd
 
         self._timeout = int(os.getenv('TIMEOUT', config['timeout']))
-        self._labels = {'host': self._host, 'model': "unknown", 'serial': "unknown"}
+        self._labels = {'host': self._host}
         self._redfish_up = 0
         self._response_time = 0
         self._last_http_code = 0
@@ -210,7 +210,7 @@ class RedfishMetricsCollector(object):
             serial = server_info['SKU']
         else:
             serial = server_info['SerialNumber']
-        labels_server = {'host': self._host, 'manufacturer': self._manufacturer, 'model': self._model, 'serial': serial}
+        self._labels.update({'host': self._host, 'manufacturer': self._manufacturer, 'model': self._model, 'serial': serial})
 
         self._server_health = self._status[server_info['Status']['Health'].lower()]
 
@@ -231,8 +231,6 @@ class RedfishMetricsCollector(object):
             self._urls['Storage'] = server_info['Storage']['@odata.id']
         if 'SimpleStorage' in server_info:
             self._urls['SimpleStorage'] = server_info['SimpleStorage']['@odata.id']
-
-        self._labels.update(labels_server)
 
     def get_proc_health(self):
         logging.debug("Target {0}: Get the CPU health data.".format(self._target))

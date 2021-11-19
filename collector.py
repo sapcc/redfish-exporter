@@ -413,9 +413,10 @@ class RedfishMetricsCollector(object):
                 dimm_health = math.nan
                 dimm_status = dict((k.lower(),v) for k,v in dimm_info['Status'].items()) # convert to lower case because there are differences per vendor
                 if 'state' in dimm_status:
-                    if dimm_status['state'].lower() == 'absent':
-                        logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: absent.".format(self._target, self._host,self._model, dimm_info['Name']))
-                        continue
+                    if dimm_status['state'] is not None:
+                        if dimm_status['state'].lower() == 'absent':
+                            logging.warning("Target {0}, Host {1}, Model {2}, Dimm {3}: absent.".format(self._target, self._host,self._model, dimm_info['Name']))
+                            continue
                     if 'Oem' in dimm_info:
                         if 'Hpe' in dimm_info['Oem']:
                             manufacturer = dimm_info['Oem']['Hpe']['VendorName']

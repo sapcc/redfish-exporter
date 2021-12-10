@@ -210,7 +210,7 @@ class RedfishMetricsCollector(object):
             serial = server_info['SKU']
         else:
             serial = server_info['SerialNumber']
-        self._labels.update({'host': self._host, 'manufacturer': self._manufacturer, 'model': self._model, 'serial': serial})
+        self._labels.update({'host': self._host, 'server_manufacturer': self._manufacturer, 'server_model': self._model, 'server_serial': serial})
 
         self._server_health = self._status[server_info['Status']['Health'].lower()]
 
@@ -288,7 +288,7 @@ class RedfishMetricsCollector(object):
             self._health_metrics.add_sample('redfish_health', value=controller_status, labels=current_labels)
             
             # Sometimes not all attributes are implemented. Checking if existing one by one.
-            disk_attributes = {'Name': 'name', 'MediaType': 'disk_type', 'Model': 'disk_model', 'Manufacturer': 'disk_manufacturer', 'CapacityBytes': 'disk_capacity'}
+            disk_attributes = {'Name': 'name', 'MediaType': 'disk_type', 'Model': 'disk_model', 'Manufacturer': 'disk_manufacturer', 'CapacityBytes': 'disk_capacity', 'Protocol': 'disk_protocol'}
             for disk in controller_data['Drives']:
                 current_labels = {'type': 'disk'}
                 disk_data = self.connect_server(disk['@odata.id'])

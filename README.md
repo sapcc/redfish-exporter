@@ -29,7 +29,7 @@ HPE DL560 Gen10
 If you are logged into the POD running the exporter, you can call
 
 ```bash
-curl http://localhost:9200/redfish?target=server1.exmapl.com&job=redfish/myjob
+curl http://localhost:9200/redfish?target=server1.example.com&job=redfish/myjob
 ```
 
 ## Prerequisites and Installation

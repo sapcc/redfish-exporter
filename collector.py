@@ -364,7 +364,7 @@ class RedfishMetricsCollector(object):
             psu_health = math.nan
             psu_status = dict((k.lower(),v) for k,v in psu['Status'].items()) # convert to lower case because there are differences per vendor
             if 'state' in psu_status:
-                if psu_status['state'] != 'absent':
+                if psu_status['state'].lower() != 'absent':
                     if 'health' in psu_status:
                         psu_health = math.nan if psu_status['health'] is None else self._status[psu_status['health'].lower()]
                     elif 'state' in psu_status:
@@ -388,7 +388,7 @@ class RedfishMetricsCollector(object):
             fan_health = math.nan
             fan_status = dict((k.lower(),v) for k,v in fan['Status'].items()) # convert to lower case because there are differences per vendor
             if 'state' in fan_status:
-                if fan_status['state'] != 'absent':
+                if fan_status['state'].lower() != 'absent':
                     if 'health' in fan_status:
                         fan_health = math.nan if fan_status['health'] is None or fan_status['health'] == '' else self._status[fan_status['health'].lower()]
                     elif 'state' in fan_status:

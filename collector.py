@@ -282,8 +282,11 @@ class RedfishMetricsCollector(object):
             else:
                 controller_name = 'unknown'
 
-            if 'Health' in controller_details['Status']:
+            # Dell BOSS cards use HealthRollup instead of Health
+            if 'HealthRollup' in controller_details['Status']:
                 # Cisco sometimes uses None as status for onboard controllers
+                controller_status = math.nan if controller_details['Status']['HealthRollup'] is None else self._status[controller_details['Status']['HealthRollup'].lower()]
+            elif 'Health' in controller_details['Status']:
                 controller_status = math.nan if controller_details['Status']['Health'] is None else self._status[controller_details['Status']['Health'].lower()]
             else:
                 logging.warning("Target {0}, Host {1}, Model {2}, Controller {3}: No health data found.".format(self._target, self._host,self._model, controller_name))

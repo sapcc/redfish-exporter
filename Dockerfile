@@ -1,9 +1,10 @@
 FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/ubuntu:22.04
 
 RUN export DEBIAN_FRONTEND=noninteractive \
-    && apt-get update \
-    && apt-get install -y python3 \
-    && apt-get install -y python3-pip
+    && apt update \
+    && apt upgrade -y \
+    && apt install -y python3.10 \
+    && apt install -y python3-pip
 
 ARG FOLDERNAME=redfish_exporter
 

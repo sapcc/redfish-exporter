@@ -655,7 +655,7 @@ class RedfishMetricsCollector(object):
                         manufacturer = dimm_info["Manufacturer"]
                     if "Oem" in dimm_info:
                         if "Hpe" in dimm_info["Oem"]:
-                            manufacturer = dimm_info["Oem"]["Hpe"]["VendorName"]
+                            manufacturer = dimm_info["Oem"]["Hpe"].get("VendorName", "unknown")
                     current_labels.update(
                         {
                             "dimm_capacity": str(dimm_info["CapacityMiB"]),

@@ -1,4 +1,4 @@
-FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/ubuntu:20.04
+FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/ubuntu:22.04
 
 RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get update \

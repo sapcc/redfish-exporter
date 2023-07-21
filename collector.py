@@ -170,6 +170,7 @@ class RedfishMetricsCollector(object):
             self._session = requests.Session()
         else:
             logging.debug("Target {0}: Using existing session.".format(self._target))
+
         self._session.verify = False
         self._session.headers.update({"charset": "utf-8"})
         self._session.headers.update({"content-type": "application/json"})
@@ -190,7 +191,7 @@ class RedfishMetricsCollector(object):
 
         logging.debug("Target {0}: Using URL {1}".format(self._target, url))
         try:
-            req = self._session.get(url, timeout=self._timeout)
+            req = self._session.get(url, stream=True, timeout=self._timeout)
             req.raise_for_status()
 
         except requests.exceptions.HTTPError as err:

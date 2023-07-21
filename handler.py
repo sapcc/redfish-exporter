@@ -4,7 +4,6 @@ import socket
 import re
 import os
 
-from wsgiref import simple_server
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
 from prometheus_client.exposition import generate_latest
 
@@ -13,7 +12,16 @@ from collector import RedfishMetricsCollector
 
 class welcomePage:
     def on_get(self, req, resp):
-        resp.body = '{"message": "This is the redfish exporter.\nUse /redfish to retrieve health metrics.\nUse /firmware to retrieve firmware version metrics."}'
+        resp.status = falcon.HTTP_200
+        resp.content_type = 'text/html'
+        resp.body = """
+        <h1>Redfish Exporter</h1>
+        <h2>Prometheus Exporter for redfish API based servers monitoring</h2>
+        <ul>
+            <li>Use <a href="/redfish">/redfish</a> to retrieve health metrics.</li>
+            <li>Use <a href="/firmware">/firmware</a> to retrieve firmware version metrics.</li>
+        </ul>
+        """
 
 
 class metricsHandler:
@@ -102,4 +110,5 @@ class metricsHandler:
 
         collected_metric = generate_latest(registry)
 
+        resp.status = falcon.HTTP_200
         resp.body = collected_metric

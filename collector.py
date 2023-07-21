@@ -130,7 +130,6 @@ class RedfishMetricsCollector(object):
                 )
             )
             self._basic_auth = True
-            self._redfish_up = 1
 
         except requests.exceptions.HTTPError as err:
             logging.warning(
@@ -142,7 +141,6 @@ class RedfishMetricsCollector(object):
                 "Target {0}: Switching to basic authentication.".format(self._target)
             )
             self._basic_auth = True
-            self._redfish_up = 1
 
         if result:
             if result.status_code in [200, 201]:

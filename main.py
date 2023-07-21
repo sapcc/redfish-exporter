@@ -1,11 +1,13 @@
 from handler import metricsHandler
 from handler import welcomePage
+
+from wsgiref.simple_server import make_server, WSGIServer, WSGIRequestHandler
+
 import argparse
 import yaml
 import logging
 import sys
 import falcon
-from wsgiref.simple_server import make_server, WSGIServer, WSGIRequestHandler
 import socket
 import os
 import warnings
@@ -34,20 +36,19 @@ def falcon_app():
     logging.info("Starting Redfish Prometheus Server on Port %s", port)
     ip = socket.gethostbyname(socket.gethostname())
     logging.info("Listening on IP %s", ip)
+
     api = falcon.API()
     api.add_route("/redfish", metricsHandler(config, health=True))
     api.add_route("/firmware", metricsHandler(config, firmware=True))
     api.add_route("/", welcomePage())
 
-    try:
-        httpd = make_server(addr, port, api, ThreadingWSGIServer)
-    except Exception as excptn:
-        logging.error("Couldn't start Server: %s", excptn)
+    with make_server(addr, port, api) as httpd:
+#    with make_server(addr, port, api, ThreadingWSGIServer) as httpd:
 
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        logging.info("Stopping Redfish Prometheus Server")
+        try:
+            httpd.serve_forever()
+        except (KeyboardInterrupt, SystemExit):
+            logging.info("Stopping Redfish Prometheus Server")
 
 
 def enable_logging():
@@ -67,6 +68,7 @@ def enable_logging():
 
 
 if __name__ == "__main__":
+
     # command line options
     parser = argparse.ArgumentParser()
     parser.add_argument(

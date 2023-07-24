@@ -42,8 +42,8 @@ def falcon_app():
     api.add_route("/firmware", metricsHandler(config, firmware=True))
     api.add_route("/", welcomePage())
 
-    with make_server(addr, port, api) as httpd:
-#    with make_server(addr, port, api, ThreadingWSGIServer) as httpd:
+#    with make_server(addr, port, api) as httpd:
+    with make_server(addr, port, api, ThreadingWSGIServer) as httpd:
 
         try:
             httpd.serve_forever()

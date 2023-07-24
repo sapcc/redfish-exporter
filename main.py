@@ -2,6 +2,7 @@ from handler import metricsHandler
 from handler import welcomePage
 
 from wsgiref.simple_server import make_server, WSGIServer, WSGIRequestHandler
+from socketserver import ThreadingMixIn
 
 import argparse
 import yaml
@@ -11,8 +12,6 @@ import falcon
 import socket
 import os
 import warnings
-from socketserver import ThreadingMixIn
-
 
 class _SilentHandler(WSGIRequestHandler):
     """WSGI handler that does not log requests."""
@@ -42,14 +41,12 @@ def falcon_app():
     api.add_route("/firmware", metricsHandler(config, firmware=True))
     api.add_route("/", welcomePage())
 
-#    with make_server(addr, port, api) as httpd:
     with make_server(addr, port, api, ThreadingWSGIServer) as httpd:
 
         try:
             httpd.serve_forever()
         except (KeyboardInterrupt, SystemExit):
             logging.info("Stopping Redfish Prometheus Server")
-
 
 def enable_logging():
     # enable logging

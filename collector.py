@@ -124,12 +124,24 @@ class RedfishMetricsCollector(object):
             result.raise_for_status()
 
         except requests.exceptions.ConnectionError as err:
-            logging.error(
-                "Target {0}: Error getting an auth token from server {1}: {2}".format(
-                    self._target, self._host, err
+            logging.warn(
+                "Target {0}: Failed to get an auth token from server {1}. Retrying ...".format(
+                    self._target, self._host
                 )
             )
-            self._basic_auth = True
+            try:
+                result = self._session.post(
+                    sessions_url, json=session_data, verify=False, timeout=self._timeout
+                )
+                result.raise_for_status()
+
+            except requests.exceptions.ConnectionError as err:
+                logging.error(
+                    "Target {0}: Error getting an auth token from server {1}: {2}".format(
+                        self._target, self._host, err
+                    )
+                )
+                self._basic_auth = True
 
         except requests.exceptions.HTTPError as err:
             logging.warning(
@@ -416,6 +428,12 @@ class RedfishMetricsCollector(object):
                     math.nan
                     if controller_details["Status"]["Health"] is None
                     else self._status[controller_details["Status"]["Health"].lower()]
+                )
+            elif "HealthRollup" in controller_details["Status"]:
+                controller_status = (
+                    math.nan
+                    if controller_details["Status"]["HealthRollup"] is None
+                    else self._status[controller_details["Status"]["HealthRollup"].lower()]
                 )
             else:
                 logging.warning(

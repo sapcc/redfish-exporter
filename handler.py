@@ -108,7 +108,5 @@ class metricsHandler:
 
         registry.get_session()
 
-        collected_metric = generate_latest(registry)
-
         resp.status = falcon.HTTP_200
-        resp.body = collected_metric
+        resp.body = generate_latest(registry)

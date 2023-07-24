@@ -722,7 +722,7 @@ class RedfishMetricsCollector(object):
                     labels=current_labels,
                 )
             else:
-                logging.warning(
+                logging.debug(
                     "Target {0}, Host {1}, Model {2}: Dimm {3}: No Dimm Metrics found.".format(
                         self._target, self._host, self._model, dimm_info["Name"]
                     )

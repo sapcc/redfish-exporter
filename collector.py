@@ -748,45 +748,47 @@ class RedfishMetricsCollector(object):
 
     def collect(self):
         try:
-            # Export the up and response metrics
-            up_metrics = GaugeMetricFamily(
-                "redfish_up",
-                "Server Monitoring for redfish availability",
-                labels=self._labels,
-            )
-            response_metrics = GaugeMetricFamily(
-                "redfish_response_duration_seconds",
-                "Server Monitoring for redfish response time",
-                labels=self._labels,
-            )
-
-            up_metrics.add_sample(
-                "redfish_up", value=self._redfish_up, labels=self._labels
-            )
-            response_metrics.add_sample(
-                "redfish_response_duration_seconds",
-                value=self._response_time,
-                labels=self._labels,
-            )
-            yield up_metrics
-            yield response_metrics
-
-            if self._redfish_up == 0:
-                return
-
-            self._get_labels()
-            powerstate_metrics = GaugeMetricFamily(
-                "redfish_powerstate",
-                "Server Monitoring Power State Data",
-                labels=self._labels,
-            )
-            powerstate_metrics.add_sample(
-                "redfish_powerstate", value=self._powerstate, labels=self._labels
-            )
-            yield powerstate_metrics
-
-            logging.info("Target {0}: Collecting data ...".format(self._target))
             if self._health:
+
+                # Export the up and response metrics
+                up_metrics = GaugeMetricFamily(
+                    "redfish_up",
+                    "Server Monitoring for redfish availability",
+                    labels=self._labels,
+                )
+                response_metrics = GaugeMetricFamily(
+                    "redfish_response_duration_seconds",
+                    "Server Monitoring for redfish response time",
+                    labels=self._labels,
+                )
+
+                up_metrics.add_sample(
+                    "redfish_up", value=self._redfish_up, labels=self._labels
+                )
+                response_metrics.add_sample(
+                    "redfish_response_duration_seconds",
+                    value=self._response_time,
+                    labels=self._labels,
+                )
+                yield up_metrics
+                yield response_metrics
+
+                if self._redfish_up == 0:
+                    return
+
+                self._get_labels()
+                powerstate_metrics = GaugeMetricFamily(
+                    "redfish_powerstate",
+                    "Server Monitoring Power State Data",
+                    labels=self._labels,
+                )
+                powerstate_metrics.add_sample(
+                    "redfish_powerstate", value=self._powerstate, labels=self._labels
+                )
+                yield powerstate_metrics
+
+                logging.info("Target {0}: Collecting data ...".format(self._target))
+
                 self._health_metrics = GaugeMetricFamily(
                     "redfish_health",
                     "Server Monitoring Health Data",
@@ -895,7 +897,35 @@ class RedfishMetricsCollector(object):
 
             # Get the firmware information
             if self._firmware:
-                logging.debug(
+                # Export the up and response metrics
+                up_metrics = GaugeMetricFamily(
+                    "redfish_version_up",
+                    "Server Monitoring for redfish version availability",
+                    labels=self._labels,
+                )
+                response_metrics = GaugeMetricFamily(
+                    "redfish_version_response_duration_seconds",
+                    "Server Monitoring for redfish version response time",
+                    labels=self._labels,
+                )
+
+                up_metrics.add_sample(
+                    "redfish_version_up", value=self._redfish_up, labels=self._labels
+                )
+                response_metrics.add_sample(
+                    "redfish_version_response_duration_seconds",
+                    value=self._response_time,
+                    labels=self._labels,
+                )
+                yield up_metrics
+                yield response_metrics
+
+                if self._redfish_up == 0:
+                    return
+
+                self._get_labels()
+
+                logging.info(
                     "Target {0}: Get the firmware information.".format(self._target)
                 )
 
@@ -908,7 +938,7 @@ class RedfishMetricsCollector(object):
                     )
                     return
                 fw_metrics = GaugeMetricFamily(
-                    "server_monitoring_fwdata",
+                    "redfish_version",
                     "Server Monitoring Firmware Data",
                     labels=self._labels,
                 )

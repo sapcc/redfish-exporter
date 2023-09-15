@@ -951,10 +951,20 @@ class RedfishMetricsCollector(object):
                         server_response = self.connect_server(fw_member_url)
                         if not server_response:
                             continue
-                        name = server_response["Name"].split(",", 1)[0]
+                        if self._labels['server_manufacturer'] == 'Lenovo':
+                            # Lenovo has always Firmware: in front of the names, let's remove it
+                            name = server_response["Name"].replace("Firmware:","")
+                            # Lenovo has two entries with name BMC
+                            # The field ID indicates Primary or Backup.
+                            if name == "BMC":
+                                name = server_response["Id"]
+
+                        else:
+                            name = server_response["Name"].split(",", 1)[0]
+
                         if "Version" in server_response:
                             version = server_response["Version"]
-                            if version != "N/A":
+                            if version != "N/A" and version != None:
                                 current_labels = {"name": name, "version": version}
                                 current_labels.update(self._labels)
                                 fw_metrics.add_sample(

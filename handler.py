@@ -25,10 +25,9 @@ class welcomePage:
 
 
 class metricsHandler:
-    def __init__(self, config, firmware=False, health=False):
+    def __init__(self, config, metrics_type):
         self._config = config
-        self._firmware = firmware
-        self._health = health
+        self.metrics_type = metrics_type
 
     def on_get(self, req, resp):
         self._target = req.get_param("target")
@@ -96,17 +95,20 @@ class metricsHandler:
 
         logging.debug("Target: {0}: Using user {1}".format(self._target, usr))
 
+        # define the parameters for the collection of metrics
         registry = RedfishMetricsCollector(
             self._config,
             target=self._target,
             host=self._host,
             usr=usr,
-            pwd=pwd,
-            firmware=self._firmware,
-            health=self._health,
+            pwd=pwd, 
+            metrics_type = self.metrics_type
         )
 
+        # open a session with the remote board
         registry.get_session()
 
         resp.status = falcon.HTTP_200
+
+        # collect the actual metrics
         resp.body = generate_latest(registry)

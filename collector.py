@@ -8,14 +8,15 @@ import sys
 import math
 from re import search
 
-
 class RedfishMetricsCollector(object):
-    def __init__(self, config, target, host, usr, pwd, firmware=False, health=False):
+    def __init__(self, config, target, host, usr, pwd, metrics_type):
         self._target = target
         self._host = host
 
         self._username = usr
         self._password = pwd
+        
+        self.metrics_type = metrics_type
 
         self._timeout = int(os.getenv("TIMEOUT", config["timeout"]))
         self._labels = {"host": self._host}
@@ -23,9 +24,6 @@ class RedfishMetricsCollector(object):
         self._response_time = 0
         self._last_http_code = 0
         self._powerstate = 0
-
-        self._firmware = firmware
-        self._health = health
 
         self._systems_url = ""
         self._urls = {
@@ -37,6 +35,8 @@ class RedfishMetricsCollector(object):
             "Chassis": "",
             "Power": "",
             "Thermal": "",
+            "PowerSubsystem": "",
+            "ThermalSubsystem": "",
             "NetworkInterfaces": "",
         }
 
@@ -144,6 +144,17 @@ class RedfishMetricsCollector(object):
                 self._basic_auth = True
 
         except requests.exceptions.HTTPError as err:
+            logging.warning(
+                "Target {0}: No session received from server {1}: {2}".format(
+                    self._target, self._host, err
+                )
+            )
+            logging.warning(
+                "Target {0}: Switching to basic authentication.".format(self._target)
+            )
+            self._basic_auth = True
+
+        except requests.exceptions.ReadTimeout as err:
             logging.warning(
                 "Target {0}: No session received from server {1}: {2}".format(
                     self._target, self._host, err
@@ -310,7 +321,7 @@ class RedfishMetricsCollector(object):
         )
         return server_response
 
-    def _get_labels(self):
+    def get_base_labels(self):
         systems = self.connect_server("/redfish/v1/Systems")
 
         if not systems:
@@ -539,12 +550,22 @@ class RedfishMetricsCollector(object):
                         labels=current_labels,
                     )
 
-    def get_chassis_health(self):
-        logging.debug("Target {0}: Get the Chassis health data.".format(self._target))
+    def get_chassis_urls(self):
         chassis_data = self.connect_server(self._urls["Chassis"])
         if not chassis_data:
             return
 
+        urls = ["PowerSubsystem", "Power", "ThermalSubsystem", "Thermal"]
+        
+        for url in urls:
+            if url in chassis_data:
+                self._urls[url] = chassis_data[url]["@odata.id"]
+
+        return chassis_data
+    
+    def get_chassis_health(self):
+        logging.debug("Target {0}: Get the Chassis health data.".format(self._target))
+        chassis_data = self.get_chassis_urls()
         current_labels = {"type": "chassis", "name": chassis_data["Name"]}
         current_labels.update(self._labels)
         self._health_metrics.add_sample(
@@ -552,10 +573,6 @@ class RedfishMetricsCollector(object):
             value=self._status[chassis_data["Status"]["Health"].lower()],
             labels=current_labels,
         )
-        if "Power" in chassis_data:
-            self._urls["Power"] = chassis_data["Power"]["@odata.id"]
-        if "Thermal" in chassis_data:
-            self._urls["Thermal"] = chassis_data["Thermal"]["@odata.id"]
 
     def get_power_health(self):
         logging.debug("Target {0}: Get the PDU health data.".format(self._target))
@@ -565,7 +582,8 @@ class RedfishMetricsCollector(object):
 
         for psu in power_data["PowerSupplies"]:
             psu_name = psu.get("Name", "unknown")
-            current_labels = {"type": "powersupply", "name": psu_name}
+            psu_model = psu.get("Model", "unknown")
+            current_labels = {"type": "powersupply", "name": psu_name, "model": psu_model}
             current_labels.update(self._labels)
             psu_health = math.nan
             psu_status = dict(
@@ -748,35 +766,36 @@ class RedfishMetricsCollector(object):
 
     def collect(self):
         try:
-            if self._health:
+            # Export the up and response metrics
+            up_metrics = GaugeMetricFamily(
+                f"redfish_{self.metrics_type}_up",
+                "Server Monitoring for redfish availability",
+                labels=self._labels,
+            )
+            response_metrics = GaugeMetricFamily(
+                f"redfish_{self.metrics_type}_response_duration_seconds",
+                "Server Monitoring for redfish response time",
+                labels=self._labels,
+            )
 
-                # Export the up and response metrics
-                up_metrics = GaugeMetricFamily(
-                    "redfish_up",
-                    "Server Monitoring for redfish availability",
-                    labels=self._labels,
-                )
-                response_metrics = GaugeMetricFamily(
-                    "redfish_response_duration_seconds",
-                    "Server Monitoring for redfish response time",
-                    labels=self._labels,
-                )
+            up_metrics.add_sample(
+                f"redfish_{self.metrics_type}_up", value=self._redfish_up, labels=self._labels
+            )
+            response_metrics.add_sample(
+                f"redfish_{self.metrics_type}_response_duration_seconds",
+                value=self._response_time,
+                labels=self._labels,
+            )
+            yield up_metrics
+            yield response_metrics
 
-                up_metrics.add_sample(
-                    "redfish_up", value=self._redfish_up, labels=self._labels
-                )
-                response_metrics.add_sample(
-                    "redfish_response_duration_seconds",
-                    value=self._response_time,
-                    labels=self._labels,
-                )
-                yield up_metrics
-                yield response_metrics
+            if self._redfish_up == 0:
+                return
 
-                if self._redfish_up == 0:
-                    return
+            self.get_base_labels()
 
-                self._get_labels()
+            if self.metrics_type == 'health':
+
                 powerstate_metrics = GaugeMetricFamily(
                     "redfish_powerstate",
                     "Server Monitoring Power State Data",
@@ -896,35 +915,7 @@ class RedfishMetricsCollector(object):
                 yield scrape_metrics
 
             # Get the firmware information
-            if self._firmware:
-                # Export the up and response metrics
-                up_metrics = GaugeMetricFamily(
-                    "redfish_version_up",
-                    "Server Monitoring for redfish version availability",
-                    labels=self._labels,
-                )
-                response_metrics = GaugeMetricFamily(
-                    "redfish_version_response_duration_seconds",
-                    "Server Monitoring for redfish version response time",
-                    labels=self._labels,
-                )
-
-                up_metrics.add_sample(
-                    "redfish_version_up", value=self._redfish_up, labels=self._labels
-                )
-                response_metrics.add_sample(
-                    "redfish_version_response_duration_seconds",
-                    value=self._response_time,
-                    labels=self._labels,
-                )
-                yield up_metrics
-                yield response_metrics
-
-                if self._redfish_up == 0:
-                    return
-
-                self._get_labels()
-
+            if self.metrics_type == 'firmware':
                 logging.info(
                     "Target {0}: Get the firmware information.".format(self._target)
                 )
@@ -938,7 +929,7 @@ class RedfishMetricsCollector(object):
                     )
                     return
                 fw_metrics = GaugeMetricFamily(
-                    "redfish_version",
+                    "redfish_firmware",
                     "Server Monitoring Firmware Data",
                     labels=self._labels,
                 )
@@ -951,6 +942,7 @@ class RedfishMetricsCollector(object):
                         server_response = self.connect_server(fw_member_url)
                         if not server_response:
                             continue
+
                         if self._labels['server_manufacturer'] == 'Lenovo':
                             # Lenovo has always Firmware: in front of the names, let's remove it
                             name = server_response["Name"].replace("Firmware:","")
@@ -968,14 +960,14 @@ class RedfishMetricsCollector(object):
                                 current_labels = {"name": name, "version": version}
                                 current_labels.update(self._labels)
                                 fw_metrics.add_sample(
-                                    "redfish_version", value=1, labels=current_labels
+                                    "redfish_firmware", value=1, labels=current_labels
                                 )
 
                 yield fw_metrics
 
         except Exception as err:
             logging.error(
-                "Target {0}: An exception occured: {1}".format(self._target, err)
+                f"Target {self._target}: An exception occured in line {sys.exc_info()[-1].tb_lineno}: {err}"
             )
 
         finally:

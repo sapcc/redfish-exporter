@@ -37,8 +37,8 @@ def falcon_app():
     logging.info("Listening on IP %s", ip)
 
     api = falcon.API()
-    api.add_route("/redfish", metricsHandler(config, health=True))
-    api.add_route("/firmware", metricsHandler(config, firmware=True))
+    api.add_route("/redfish",  metricsHandler(config, metrics_type='health'))
+    api.add_route("/firmware", metricsHandler(config, metrics_type='firmware'))
     api.add_route("/", welcomePage())
 
     with make_server(addr, port, api, ThreadingWSGIServer) as httpd:

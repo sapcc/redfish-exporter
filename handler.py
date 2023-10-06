@@ -30,13 +30,13 @@ class metricsHandler:
         self.metrics_type = metrics_type
 
     def on_get(self, req, resp):
-        self._target = req.get_param("target")
-        if not self._target:
+        self.target = req.get_param("target")
+        if not self.target:
             msg = "No target parameter provided!"
             logging.error(msg)
             raise falcon.HTTPMissingParam("target")
 
-        logging.debug("Received Target: %s", self._target)
+        logging.debug("Received Target: %s", self.target)
 
         self._job = req.get_param("job")
         if not self._job:
@@ -50,29 +50,24 @@ class metricsHandler:
 
         resp.set_header("Content-Type", CONTENT_TYPE_LATEST)
 
-        self._host = self._target
-        if ip_re.match(self._target):
-            logging.debug("Target {0}: Target is an IP Address.".format(self._target))
+        self.host = self.target
+        if ip_re.match(self.target):
+            logging.debug(f"Target {self.target}: Target is an IP Address.")
             try:
-                host = socket.gethostbyaddr(self._target)[0]
+                host = socket.gethostbyaddr(self.target)[0]
                 if host:
-                    self._host = host
+                    self.host = host
             except socket.herror as err:
-                logging.warning(
-                    "Target {0}: Reverse DNS lookup failed: {1}".format(
-                        self._target, err
-                    )
-                )
+                logging.warning(f"Target {self.target}: Reverse DNS lookup failed: {err}")
+                
         else:
-            logging.debug("Target {0}: Target is a hostname.".format(self._target))
+            logging.debug(f"Target {self.target}: Target is a hostname.")
             try:
-                target = socket.gethostbyname(self._host)
+                target = socket.gethostbyname(self.host)
                 if target:
-                    self._target = target
+                    self.target = target
             except socket.gaierror as err:
-                logging.warning(
-                    "Target {0}: DNS lookup failed: {1}".format(self._target, err)
-                )
+                logging.warning(f"Target {self.target}: DNS lookup failed: {err}")
 
         usr_env_var = self._job.replace("/", "_").upper() + "_USERNAME"
         pwd_env_var = self._job.replace("/", "_").upper() + "_PASSWORD"
@@ -80,26 +75,22 @@ class metricsHandler:
         pwd = os.getenv(pwd_env_var, self._config["password"])
 
         if not usr:
-            msg = "Target {0}: Unknown job provided or no user found in environment and config file: {1}".format(
-                self._target, self._job
-            )
+            msg = f"Target {self.target}: Unknown job provided or no user found in environment and config file: {self._job}"
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, "job")
 
         if not pwd:
-            msg = "Target {0}: Unknown job provided or no password found in environment and config file: {1}".format(
-                self._target, self._job
-            )
+            msg = f"Target {self.target}: Unknown job provided or no password found in environment and config file: {self._job}"
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, "job")
 
-        logging.debug("Target: {0}: Using user {1}".format(self._target, usr))
+        logging.debug("Target: {self.target}: Using user {usr}")
 
         # define the parameters for the collection of metrics
         registry = RedfishMetricsCollector(
             self._config,
-            target=self._target,
-            host=self._host,
+            target=self.target,
+            host=self.host,
             usr=usr,
             pwd=pwd, 
             metrics_type = self.metrics_type

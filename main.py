@@ -39,6 +39,7 @@ def falcon_app():
     api = falcon.API()
     api.add_route("/redfish",  metricsHandler(config, metrics_type='health'))
     api.add_route("/firmware", metricsHandler(config, metrics_type='firmware'))
+    api.add_route("/performance", metricsHandler(config, metrics_type='performance'))
     api.add_route("/", welcomePage())
 
     with make_server(addr, port, api, ThreadingWSGIServer) as httpd:
@@ -99,8 +100,8 @@ if __name__ == "__main__":
     try:
         with open(args.config, "r") as config_file:
             config = yaml.load(config_file.read(), Loader=yaml.FullLoader)
-    except FileNotFoundError as e:
-        print("Config File not found: {0}".format(e))
+    except FileNotFoundError as err:
+        print(f"Config File not found: {err}")
         exit(1)
 
     falcon_app()

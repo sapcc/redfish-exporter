@@ -1,12 +1,7 @@
 from prometheus_client.core import GaugeMetricFamily
 
-import requests
 import logging
-import os
-import time
-import sys
 import math
-from re import search
 
 class HealthCollector(object):
 

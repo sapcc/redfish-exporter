@@ -1,12 +1,6 @@
 from prometheus_client.core import GaugeMetricFamily
 
-import requests
 import logging
-import os
-import time
-import sys
-import math
-from re import search
 
 class PerformanceCollector(object):
     def __init__(self, redfish_metrics_collector):

@@ -5,8 +5,6 @@ import logging
 import os
 import time
 import sys
-import math
-from re import search
 from collectors.performance_collector import PerformanceCollector
 from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector

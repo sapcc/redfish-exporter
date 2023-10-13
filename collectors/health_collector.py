@@ -85,8 +85,8 @@ class HealthCollector(object):
             else:
                 controller_name = "unknown"
 
-             # Dell BOSS cards use HealthRollup instead of Health
-             if "HealthRollup" in controller_details["Status"]:
+            # Dell BOSS cards use HealthRollup instead of Health
+            if "HealthRollup" in controller_details["Status"]:
                 controller_status = (
                     math.nan
                     if controller_details["Status"]["HealthRollup"] is None

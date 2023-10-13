@@ -36,13 +36,13 @@ class metricsHandler:
             logging.error(msg)
             raise falcon.HTTPMissingParam("target")
 
-        logging.debug("Received Target: %s", self.target)
+        logging.debug(f"Received Target: {self.target}")
 
         self._job = req.get_param("job")
         if not self._job:
             self._job = self._config["job"]
 
-        logging.debug("Received Job: %s", self._job)
+        logging.debug(f"Received Job: {self._job}")
 
         ip_re = re.compile(
             r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
@@ -84,7 +84,7 @@ class metricsHandler:
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, "job")
 
-        logging.debug("Target: {self.target}: Using user {usr}")
+        logging.debug(f"Target: {self.target}: Using user {usr}")
 
         # define the parameters for the collection of metrics
         registry = RedfishMetricsCollector(

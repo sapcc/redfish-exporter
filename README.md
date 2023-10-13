@@ -101,10 +101,14 @@ Showing the powerstate of the server
 
 The duration of the first response of the server to a call to /redfish/v1
 
+### redfish_up
+
+Metric indicating if there was a valid redfish response while calling /redfish/v1
+
 ### redfish_scrape_duration_seconds
 
 Total duration of scarping all data from the server
 
-### redfish_version
+### redfish_firmware
 
-A collection of firmware version data stored in the labels. The value is always zero.
+A collection of firmware version data stored in the labels. The value is always 1.

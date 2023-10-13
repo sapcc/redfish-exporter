@@ -3,7 +3,7 @@ FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/ubuntu:latest
 RUN export DEBIAN_FRONTEND=noninteractive \
     && apt update \
     && apt upgrade -y \
-    && apt install -y python3.11.4 \
+    && apt install -y python3.11 \
     && apt install -y python3-pip
 
 ARG FOLDERNAME=redfish_exporter

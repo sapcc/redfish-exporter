@@ -49,21 +49,30 @@ def falcon_app():
         except (KeyboardInterrupt, SystemExit):
             logging.info("Stopping Redfish Prometheus Server")
 
-def enable_logging():
+def enable_logging(filename, debug):
     # enable logging
     logger = logging.getLogger()
-    if args.debug:
+    
+    formatter = logging.Formatter('%(asctime)-15s %(process)d %(filename)24s:%(lineno)-3d %(levelname)-7s %(message)s')
+
+    if debug:
         logger.setLevel("DEBUG")
     else:
         logger.setLevel("INFO")
-    format = (
-        "%(asctime)-15s %(process)d %(levelname)s %(filename)s:%(lineno)d %(message)s"
-    )
-    if args.logging:
-        logging.basicConfig(filename=args.logging, format=format)
-    else:
-        logging.basicConfig(stream=sys.stdout, format=format)
 
+    sh = logging.StreamHandler()
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
+
+    if filename:
+        try:
+            fh = logging.FileHandler(filename, mode='w')
+        except FileNotFoundError as e:
+            logging.error(f"Could not open logfile {filename}: {e}")
+            exit(1)
+
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
 
 if __name__ == "__main__":
 
@@ -94,7 +103,7 @@ if __name__ == "__main__":
 
     warnings.filterwarnings("ignore")
 
-    enable_logging()
+    enable_logging(args.logging, args.debug)
 
     # get the config
     try:

@@ -9,6 +9,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 ARG FOLDERNAME=redfish_exporter
 
 RUN mkdir /${FOLDERNAME}
+RUN mkdir /${FOLDERNAME}/collectors
 
 WORKDIR /${FOLDERNAME}
 
@@ -17,6 +18,7 @@ COPY requirements.txt /${FOLDERNAME}
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY *.py /${FOLDERNAME}/
+COPY collectors/ /${FOLDERNAME}/collectors/
 COPY config.yml /${FOLDERNAME}/
 
 LABEL source_repository="https://github.com/sapcc/redfish-exporter"

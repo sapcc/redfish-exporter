@@ -34,7 +34,7 @@ class FirmwareCollector(object):
                 if not server_response:
                     continue
 
-                if self.col.labels['server_manufacturer'] == 'Lenovo':
+                if self.col.manufacturer == 'Lenovo':
                     # Lenovo has always Firmware: in front of the names, let's remove it
                     name = server_response['Name'].replace('Firmware:','')
                     # Lenovo has two entries with name BMC
@@ -45,10 +45,14 @@ class FirmwareCollector(object):
                 else:
                     name = server_response['Name'].split(",", 1)[0]
 
+                current_labels = {"name": name}
+                if "Manufacturer" in server_response:
+                    current_labels.update({"manufacturer": server_response['Manufacturer']})
+
                 if "Version" in server_response:
                     version = server_response['Version']
                     if version != "N/A" and version != None:
-                        current_labels = {"name": name, "version": version}
+                        current_labels.update({"version": version})
                         current_labels.update(self.col.labels)
                         self.fw_metrics.add_sample(
                             "redfish_firmware", value=1, labels=current_labels

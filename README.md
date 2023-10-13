@@ -21,7 +21,7 @@ Dell PowerEdge R840
 
 Lenovo ThinkSystem SR950
 
-HPE DL360 Gen10
+HPE DL360 Gen10   
 HPE DL560 Gen10
 
 ## Example Call
@@ -29,7 +29,7 @@ HPE DL560 Gen10
 If you are logged into the POD running the exporter, you can call
 
 ```bash
-curl http://localhost:9200/redfish?target=server1.example.com&job=redfish/myjob
+curl http://localhost:9200/redfish?target=server1.example.com&job=redfish-myjob
 ```
 
 ## Prerequisites and Installation
@@ -45,7 +45,9 @@ There is also a docker file available to create a docker container to run the ex
 ## Parameters
 
 `-l <logfile>` - all output is written to a logfile.
+
 `-d` - switches on debugging mode
+
 `-c <config file>` - you can specify the path to the config file, default is config.yml.
 
 ## The config.yml file

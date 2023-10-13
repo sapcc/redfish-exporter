@@ -70,7 +70,7 @@ listen_port: 9200
 username: <your username>
 password: <your password>
 timeout: 40
-job: 'redfish/myjob'
+job: 'redfish-myjob'
 ```
 
 ## Exported Metrics

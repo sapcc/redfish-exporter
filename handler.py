@@ -69,8 +69,8 @@ class metricsHandler:
             except socket.gaierror as err:
                 logging.warning(f"Target {self.target}: DNS lookup failed: {err}")
 
-        usr_env_var = self._job.replace("/", "_").upper() + "_USERNAME"
-        pwd_env_var = self._job.replace("/", "_").upper() + "_PASSWORD"
+        usr_env_var = self._job.replace("-", "_").upper() + "_USERNAME"
+        pwd_env_var = self._job.replace("-", "_").upper() + "_PASSWORD"
         usr = os.getenv(usr_env_var, self._config["username"])
         pwd = os.getenv(pwd_env_var, self._config["password"])
 

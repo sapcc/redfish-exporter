@@ -85,18 +85,19 @@ class HealthCollector(object):
             else:
                 controller_name = "unknown"
 
-            if "Health" in controller_details["Status"]:
+             # Dell BOSS cards use HealthRollup instead of Health
+             if "HealthRollup" in controller_details["Status"]:
+                controller_status = (
+                    math.nan
+                    if controller_details["Status"]["HealthRollup"] is None
+                    else self.col.status[controller_details["Status"]["HealthRollup"].lower()]
+                )
+            elif "Health" in controller_details["Status"]:
                 # Cisco sometimes uses None as status for onboard controllers
                 controller_status = (
                     math.nan
                     if controller_details["Status"]["Health"] is None
                     else self.col.status[controller_details["Status"]["Health"].lower()]
-                )
-            elif "HealthRollup" in controller_details["Status"]:
-                controller_status = (
-                    math.nan
-                    if controller_details["Status"]["HealthRollup"] is None
-                    else self.col.status[controller_details["Status"]["HealthRollup"].lower()]
                 )
             else:
                 logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Controller {controller_name}: No health data found.")

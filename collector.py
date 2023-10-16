@@ -291,44 +291,45 @@ class RedfishMetricsCollector(object):
     def collect(self):
         try:
 
-            up_metrics = GaugeMetricFamily(
-                f"redfish_up",
-                "Server Monitoring for redfish availability",
-                labels=self.labels,
-            )
-            up_metrics.add_sample(
-                f"redfish_up", value=self._redfish_up, labels=self.labels
-            )
-            yield up_metrics
+            if self.metrics_type == 'health':
+                up_metrics = GaugeMetricFamily(
+                    f"redfish_up",
+                    "Server Monitoring for redfish availability",
+                    labels=self.labels,
+                )
+                up_metrics.add_sample(
+                    f"redfish_up", value=self._redfish_up, labels=self.labels
+                )
+                yield up_metrics
 
-            response_metrics = GaugeMetricFamily(
-                f"redfish_response_duration_seconds",
-                "Server Monitoring for redfish response time",
-                labels=self.labels,
-            )
-            response_metrics.add_sample(
-                f"redfish_response_duration_seconds",
-                value=self._response_time,
-                labels=self.labels,
-            )
-            yield response_metrics
+                response_metrics = GaugeMetricFamily(
+                    f"redfish_response_duration_seconds",
+                    "Server Monitoring for redfish response time",
+                    labels=self.labels,
+                )
+                response_metrics.add_sample(
+                    f"redfish_response_duration_seconds",
+                    value=self._response_time,
+                    labels=self.labels,
+                )
+                yield response_metrics
 
             if self._redfish_up == 0:
                 return
 
-            powerstate_metrics = GaugeMetricFamily(
-                "redfish_powerstate",
-                "Server Monitoring Power State Data",
-                labels=self.labels,
-            )
-            powerstate_metrics.add_sample(
-                "redfish_powerstate", value=self.powerstate, labels=self.labels
-            )
-            yield powerstate_metrics
-
             self.get_base_labels()
 
             if self.metrics_type == 'health':
+                powerstate_metrics = GaugeMetricFamily(
+                    "redfish_powerstate",
+                    "Server Monitoring Power State Data",
+                    labels=self.labels,
+                )
+                powerstate_metrics.add_sample(
+                    "redfish_powerstate", value=self.powerstate, labels=self.labels
+                )
+                yield powerstate_metrics
+
                 metrics = HealthCollector(self)
                 metrics.collect()
 

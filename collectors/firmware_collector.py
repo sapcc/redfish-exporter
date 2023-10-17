@@ -27,9 +27,8 @@ class FirmwareCollector(object):
 
         for fw_member in fw_collection['Members']:
             fw_member_url = fw_member['@odata.id']
-            if (
-                search(".*Dell.*", self.col.manufacturer) and ("Installed" in fw_member_url)
-            ) or not search(".*Dell.*", self.col.manufacturer):
+            # only look at entries on a Dell server if the device is markedd as installed
+            if (search(".*Dell.*", self.col.manufacturer) and ("Installed" in fw_member_url)) or not search(".*Dell.*", self.col.manufacturer):
                 server_response = self.col.connect_server(fw_member_url)
                 if not server_response:
                     continue
@@ -37,15 +36,15 @@ class FirmwareCollector(object):
                 if self.col.manufacturer == 'Lenovo':
                     # Lenovo has always Firmware: in front of the names, let's remove it
                     name = server_response['Name'].replace('Firmware:','')
-                    # Lenovo has two entries with name BMC
-                    # The field ID indicates Primary or Backup.
-                    if name == "BMC":
-                        name = server_response['Id']
-
+                    # we need an additional label to distinguish the metrics because
+                    # the device ID is not in the name in case of Lenovo
+                    if "Id" in server_response:
+                        current_labels.update({"id": server_response['Id']})
                 else:
                     name = server_response['Name'].split(",", 1)[0]
 
                 current_labels = {"name": name}
+
                 if "Manufacturer" in server_response:
                     current_labels.update({"manufacturer": server_response['Manufacturer']})
 
@@ -54,6 +53,4 @@ class FirmwareCollector(object):
                     if version != "N/A" and version != None:
                         current_labels.update({"version": version})
                         current_labels.update(self.col.labels)
-                        self.fw_metrics.add_sample(
-                            "redfish_firmware", value=1, labels=current_labels
-                        )
+                        self.fw_metrics.add_sample("redfish_firmware", value=1, labels=current_labels)

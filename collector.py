@@ -19,7 +19,7 @@ class RedfishMetricsCollector(object):
         
         self.metrics_type = metrics_type
 
-        self._timeout = int(os.getenv("TIMEOUT", config['timeout']))
+        self._timeout = int(os.getenv("TIMEOUT", config.get('timeout', 10)))
         self.labels = {"host": self.host}
         self._redfish_up = 0
         self._response_time = 0

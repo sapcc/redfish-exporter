@@ -30,7 +30,7 @@ class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
 
 
 def falcon_app():
-    port = int(os.getenv("LISTEN_PORT", config["listen_port"]))
+    port = int(os.getenv("LISTEN_PORT", config.get("listen_port", 9200)))
     addr = "0.0.0.0"
     logging.info("Starting Redfish Prometheus Server on Port %s", port)
     ip = socket.gethostbyname(socket.gethostname())
@@ -84,14 +84,14 @@ if __name__ == "__main__":
         help="Specify config yaml file",
         metavar="FILE",
         required=False,
-        default="config.yml",
+        default="config.yml"
     )
     parser.add_argument(
         "-l",
         "--logging",
         help="Log all messages to a file",
         metavar="FILE",
-        required=False,
+        required=False
     )
     parser.add_argument(
         "-d", "--debug", 
@@ -106,11 +106,13 @@ if __name__ == "__main__":
     enable_logging(args.logging, args.debug)
 
     # get the config
-    try:
-        with open(args.config, "r") as config_file:
-            config = yaml.load(config_file.read(), Loader=yaml.FullLoader)
-    except FileNotFoundError as err:
-        print(f"Config File not found: {err}")
-        exit(1)
+
+    if args.config:
+        try:
+            with open(args.config, "r") as config_file:
+                config = yaml.load(config_file.read(), Loader=yaml.FullLoader)
+        except FileNotFoundError as err:
+            print(f"Config File not found: {err}")
+            exit(1)
 
     falcon_app()

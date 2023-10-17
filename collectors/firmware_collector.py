@@ -33,20 +33,20 @@ class FirmwareCollector(object):
                 if not server_response:
                     continue
 
+                name = server_response['Name'].split(",", 1)[0]
+                current_labels = {"name": name}
+
                 if self.col.manufacturer == 'Lenovo':
                     # Lenovo has always Firmware: in front of the names, let's remove it
                     name = server_response['Name'].replace('Firmware:','')
+                    current_labels.update({"name": name})
                     # we need an additional label to distinguish the metrics because
                     # the device ID is not in the name in case of Lenovo
                     if "Id" in server_response:
                         current_labels.update({"id": server_response['Id']})
-                else:
-                    name = server_response['Name'].split(",", 1)[0]
-
-                current_labels = {"name": name}
 
                 if "Manufacturer" in server_response:
-                    current_labels.update({"manufacturer": server_response['Manufacturer']})
+                    current_labels.update({"device_manufacturer": server_response['Manufacturer']})
 
                 if "Version" in server_response:
                     version = server_response['Version']

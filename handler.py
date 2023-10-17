@@ -71,8 +71,8 @@ class metricsHandler:
 
         usr_env_var = self._job.replace("-", "_").upper() + "_USERNAME"
         pwd_env_var = self._job.replace("-", "_").upper() + "_PASSWORD"
-        usr = os.getenv(usr_env_var, self._config["username"])
-        pwd = os.getenv(pwd_env_var, self._config["password"])
+        usr = os.getenv(usr_env_var, self._config.get("username"))
+        pwd = os.getenv(pwd_env_var, self._config.get("password"))
 
         if not usr:
             msg = f"Target {self.target}: Unknown job provided or no user found in environment and config file: {self._job}"
@@ -80,7 +80,7 @@ class metricsHandler:
             raise falcon.HTTPInvalidParam(msg, "job")
 
         if not pwd:
-            msg = f"Target {self.target}: Unknown job provided or no password found in environment and config file: {self._job}"
+            msg = f"Target {self.target}: Unknown job provided or no password found in environment and config file: {self._job}, {usr}"
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, "job")
 

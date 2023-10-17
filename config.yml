@@ -1,5 +1,3 @@
 listen_port: 9220
-username: 'root'
-password: 'calvin'
 timeout: 10
 job: 'redfish/bb'

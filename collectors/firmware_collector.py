@@ -33,20 +33,20 @@ class FirmwareCollector(object):
                 if not fw_item:
                     continue
 
-                device_name = fw_item['Name'].split(",", 1)[0]
-                current_labels = {"device_name": device_name}
+                item_name = fw_item['Name'].split(",", 1)[0]
+                current_labels = {"item_name": item_name}
 
                 if self.col.manufacturer == 'Lenovo':
                     # Lenovo has always Firmware: in front of the names, let's remove it
-                    device_name = fw_item['Name'].replace('Firmware:','')
-                    current_labels.update({"device_name": device_name})
+                    item_name = fw_item['Name'].replace('Firmware:','')
+                    current_labels.update({"item_name": item_name})
                     # we need an additional label to distinguish the metrics because
                     # the device ID is not in the name in case of Lenovo
                     if "Id" in fw_item:
-                        current_labels.update({"id": fw_item['Id']})
+                        current_labels.update({"item_id": fw_item['Id']})
 
                 if "Manufacturer" in fw_item:
-                    current_labels.update({"device_manufacturer": fw_item['Manufacturer']})
+                    current_labels.update({"item_manufacturer": fw_item['Manufacturer']})
 
                 if "Version" in fw_item:
                     version = fw_item['Version']

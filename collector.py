@@ -53,6 +53,7 @@ class RedfishMetricsCollector(object):
             "critical": 1,
             "error": 1,
             "warning": 2,
+            "absent": 0
         }
         self._start_time = time.time()
 

@@ -40,7 +40,9 @@ class metricsHandler:
 
         self._job = req.get_param("job")
         if not self._job:
-            self._job = self._config["job"]
+            msg = f"Target {self.target}: No job provided!"
+            logging.error(msg)
+            raise falcon.HTTPInvalidParam(msg, "job")
 
         logging.debug(f"Received Job: {self._job}")
 

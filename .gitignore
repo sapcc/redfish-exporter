@@ -2,3 +2,4 @@ __pycache__
 .vscode/*
 env_*
 hosts_*.txt
+*.ps1

@@ -3,6 +3,7 @@ import logging
 import socket
 import re
 import os
+import json
 
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
 from prometheus_client.exposition import generate_latest
@@ -101,7 +102,13 @@ class metricsHandler:
         # open a session with the remote board
         registry.get_session()
 
-        resp.status = falcon.HTTP_200
+        try:
+            # collect the actual metrics
+            resp.body = generate_latest(registry)
+            resp.status = falcon.HTTP_200
 
-        # collect the actual metrics
-        resp.body = generate_latest(registry)
+        except AttributeError as err:
+            resp.status = falcon.HTTP_500
+            resp.body = json.dumps({'status': 0,
+                               'message': 'Something went wrong, Please try again'
+                               })

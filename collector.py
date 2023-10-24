@@ -238,16 +238,13 @@ class RedfishMetricsCollector(object):
         self.manufacturer = server_info['Manufacturer']
         self.model = server_info['Model']
         self.powerstate = powerstates[server_info['PowerState'].lower()]
-        if "SKU" in server_info:
-            serial = server_info['SKU']
-        else:
-            serial = server_info['SerialNumber']
+
         self.labels.update(
             {
                 "host": self.host,
-                "server_manufacturer": self.manufacturer,
-                "server_model": self.model,
-                "server_serial": serial,
+                "server_manufacturer": server_info['Manufacturer'],
+                "server_model": server_info['Model'],
+                "server_serial": (server_info['SKU'] if "SKU" in server_info else server_info['SerialNumber'])
             }
         )
 

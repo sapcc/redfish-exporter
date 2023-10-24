@@ -3,13 +3,11 @@ from handler import welcomePage
 
 from wsgiref.simple_server import make_server, WSGIServer, WSGIRequestHandler
 from socketserver import ThreadingMixIn
+import falcon
 
 import argparse
 import yaml
 import logging
-import sys
-import falcon
-import socket
 import os
 import warnings
 
@@ -18,23 +16,17 @@ class _SilentHandler(WSGIRequestHandler):
 
     def log_message(self, format, *args):
         """Log nothing."""
+        pass
 
 
 class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
     """Thread per request HTTP server."""
-
-    # Make worker threads "fire and forget". Beginning with Python 3.7 this
-    # prevents a memory leak because ``ThreadingMixIn`` starts to gather all
-    # non-daemon threads in a list in order to join on them at server close.
-    daemon_threads = True
-
+    pass
 
 def falcon_app():
     port = int(os.getenv("LISTEN_PORT", config.get("listen_port", 9200)))
     addr = "0.0.0.0"
     logging.info("Starting Redfish Prometheus Server on Port %s", port)
-    ip = socket.gethostbyname(socket.gethostname())
-    logging.info("Listening on IP %s", ip)
 
     api = falcon.API()
     api.add_route("/redfish",  metricsHandler(config, metrics_type='health'))
@@ -42,8 +34,8 @@ def falcon_app():
     api.add_route("/performance", metricsHandler(config, metrics_type='performance'))
     api.add_route("/", welcomePage())
 
-    with make_server(addr, port, api, ThreadingWSGIServer) as httpd:
-
+    with make_server(addr, port, api, ThreadingWSGIServer, handler_class=_SilentHandler) as httpd:
+        httpd.daemon = True
         try:
             httpd.serve_forever()
         except (KeyboardInterrupt, SystemExit):

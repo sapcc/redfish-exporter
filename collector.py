@@ -32,7 +32,6 @@ class RedfishMetricsCollector(object):
             "ManagedBy": "",
             "Processors": "",
             "Storage": "",
-            "SimpleStorage": "",
             "Chassis": "",
             "Power": "",
             "Thermal": "",
@@ -271,8 +270,6 @@ class RedfishMetricsCollector(object):
             self.urls['Processors'] = server_info['Processors']['@odata.id']
         if "Storage" in server_info:
             self.urls['Storage'] = server_info['Storage']['@odata.id']
-        if "SimpleStorage" in server_info:
-            self.urls['SimpleStorage'] = server_info['SimpleStorage']['@odata.id']
 
         self.get_chassis_urls()
 

@@ -257,7 +257,7 @@ class HealthCollector(object):
                 "dimm_type": dimm_info["MemoryDeviceType"],
             }
             if "Manufacturer" in dimm_info:
-                manufacturer = dimm_info["Manufacturer"]
+                manufacturer = dimm_info.get("Manufacturer", "N/A")
             if "Oem" in dimm_info:
                 if "Hpe" in dimm_info["Oem"]:
                     manufacturer = dimm_info["Oem"]["Hpe"].get("VendorName", "unknown")
@@ -271,13 +271,17 @@ class HealthCollector(object):
                 dimm_health = math.nan
                 dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )  # convert to lower case because there are differences per vendor
 
+                if "state" in dimm_status and dimm_status["state"].lower() == "absent":
+                    logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: absent.")
+                    continue
+
                 if "health" in dimm_status:
                     dimm_health = ( math.nan if dimm_info["Status"]["Health"] is None else self.col.status[dimm_info["Status"]["Health"].lower()] )
                 elif "state" in dimm_status:
                     dimm_health = ( math.nan if dimm_info["Status"]["State"]  is None else self.col.status[dimm_info["Status"]["State"].lower()] )
 
             if dimm_health is math.nan:
-                logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: No health data found.")
+                logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: No health data found.")
 
             self.health_metrics.add_sample(
                 "redfish_health", value=dimm_health, labels=current_labels
@@ -287,28 +291,23 @@ class HealthCollector(object):
                 dimm_metrics = self.col.connect_server(dimm_info["Metrics"]["@odata.id"])
                 if not dimm_metrics:
                     continue
+
                 correctable_ecc_error = (
                     math.nan
                     if dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"]
                     is None
                     else int(dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"])
                 )
+                self.mem_metrics_correctable.add_sample("redfish_memory_correctable", value=correctable_ecc_error, labels=current_labels)
+
                 uncorrectable_ecc_error = (
                     math.nan
                     if dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"]
                     is None
                     else int(dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"])
                 )
-                self.mem_metrics_correctable.add_sample(
-                    "redfish_memory_correctable",
-                    value=correctable_ecc_error,
-                    labels=current_labels,
-                )
-                self.mem_metrics_unorrectable.add_sample(
-                    "redfish_memory_uncorrectable",
-                    value=uncorrectable_ecc_error,
-                    labels=current_labels,
-                )
+                self.mem_metrics_unorrectable.add_sample("redfish_memory_uncorrectable", value=uncorrectable_ecc_error, labels=current_labels)
+
             else:
                 logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No Dimm Metrics found.")
 

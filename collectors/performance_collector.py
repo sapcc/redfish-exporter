@@ -3,6 +3,10 @@ from prometheus_client.core import GaugeMetricFamily
 import logging
 
 class PerformanceCollector(object):
+
+    def __enter__(self):
+        return self
+
     def __init__(self, redfish_metrics_collector):
 
         self.col = redfish_metrics_collector
@@ -114,4 +118,10 @@ class PerformanceCollector(object):
         logging.info(f"Target {self.col.target}: Get the firmware information.")
         self.get_power_metrics()
         self.get_temp_metrics()
-        
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
+            logging.exception(f"Target {self.target}: Exception type: {exc_type}")
+            logging.exception(f"Target {self.target}: Exception value: {exc_val}")
+            logging.exception(f"Target {self.target}: Traceback: {exc_tb}")

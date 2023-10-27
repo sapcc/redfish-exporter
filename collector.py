@@ -10,6 +10,10 @@ from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector
 
 class RedfishMetricsCollector(object):
+
+    def __enter__(self):
+        return self
+
     def __init__(self, config, target, host, usr, pwd, metrics_type):
         self.target = target
         self.host = host
@@ -284,116 +288,113 @@ class RedfishMetricsCollector(object):
         return chassis_data
     
     def collect(self):
-        try:
+        if self.metrics_type == 'health':
+            up_metrics = GaugeMetricFamily(
+                f"redfish_up",
+                "Server Monitoring for redfish availability",
+                labels=self.labels,
+            )
+            up_metrics.add_sample(
+                f"redfish_up", value=self._redfish_up, labels=self.labels
+            )
+            yield up_metrics
 
-            if self.metrics_type == 'health':
-                up_metrics = GaugeMetricFamily(
-                    f"redfish_up",
-                    "Server Monitoring for redfish availability",
-                    labels=self.labels,
-                )
-                up_metrics.add_sample(
-                    f"redfish_up", value=self._redfish_up, labels=self.labels
-                )
-                yield up_metrics
+            response_metrics = GaugeMetricFamily(
+                f"redfish_response_duration_seconds",
+                "Server Monitoring for redfish response time",
+                labels=self.labels,
+            )
+            response_metrics.add_sample(
+                f"redfish_response_duration_seconds",
+                value=self._response_time,
+                labels=self.labels,
+            )
+            yield response_metrics
 
-                response_metrics = GaugeMetricFamily(
-                    f"redfish_response_duration_seconds",
-                    "Server Monitoring for redfish response time",
-                    labels=self.labels,
-                )
-                response_metrics.add_sample(
-                    f"redfish_response_duration_seconds",
-                    value=self._response_time,
-                    labels=self.labels,
-                )
-                yield response_metrics
+        if self._redfish_up == 0:
+            return
 
-            if self._redfish_up == 0:
-                return
+        self.get_base_labels()
 
-            self.get_base_labels()
+        if self.metrics_type == 'health':
+            powerstate_metrics = GaugeMetricFamily(
+                "redfish_powerstate",
+                "Server Monitoring Power State Data",
+                labels=self.labels,
+            )
+            powerstate_metrics.add_sample(
+                "redfish_powerstate", value=self.powerstate, labels=self.labels
+            )
+            yield powerstate_metrics
 
-            if self.metrics_type == 'health':
-                powerstate_metrics = GaugeMetricFamily(
-                    "redfish_powerstate",
-                    "Server Monitoring Power State Data",
-                    labels=self.labels,
-                )
-                powerstate_metrics.add_sample(
-                    "redfish_powerstate", value=self.powerstate, labels=self.labels
-                )
-                yield powerstate_metrics
-
-                metrics = HealthCollector(self)
+            with HealthCollector(self) as metrics:
                 metrics.collect()
 
                 yield metrics.mem_metrics_correctable
                 yield metrics.mem_metrics_unorrectable
                 yield metrics.health_metrics
 
-            # Get the firmware information
-            if self.metrics_type == 'firmware':
-                metrics = FirmwareCollector(self)
+        # Get the firmware information
+        if self.metrics_type == 'firmware':
+            with FirmwareCollector(self) as metrics:
                 metrics.collect()
                 
                 yield metrics.fw_metrics
 
-            # Get the performance information
-            if self.metrics_type == 'performance':
-                metrics = PerformanceCollector(self)
+        # Get the performance information
+        if self.metrics_type == 'performance':
+            with PerformanceCollector(self) as metrics:
                 metrics.collect()
                 
                 yield metrics.power_metrics
                 yield metrics.temperature_metrics
 
-            # Finish with calculating the scrape duration
-            duration = round(time.time() - self._start_time, 2)
-            logging.info(f"Target {self.target}: Scrape duration: {duration} seconds")
+        # Finish with calculating the scrape duration
+        duration = round(time.time() - self._start_time, 2)
+        logging.info(f"Target {self.target}: Scrape duration: {duration} seconds")
 
-            scrape_metrics = GaugeMetricFamily(
-                f"redfish_{self.metrics_type}_scrape_duration_seconds",
-                "Server Monitoring redfish scrabe duration in seconds",
-                labels=self.labels,
+        scrape_metrics = GaugeMetricFamily(
+            f"redfish_{self.metrics_type}_scrape_duration_seconds",
+            "Server Monitoring redfish scrabe duration in seconds",
+            labels=self.labels,
+        )
+
+        scrape_metrics.add_sample(
+            f"redfish_{self.metrics_type}_scrape_duration_seconds",
+            value=duration,
+            labels=self.labels,
+        )
+        yield scrape_metrics
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        logging.debug(f"Target {self.target}: Deleting Redfish session with server {self.host}")
+
+        if self._auth_token:
+            session_url = f"https://{self.target}{self._session_url}"
+            headers = {"x-auth-token": self._auth_token}
+
+            logging.debug(f"Target {self.target}: Using URL {session_url}")
+
+            response = requests.delete(
+                session_url, verify=False, timeout=self._timeout, headers=headers
             )
+            response.close()
 
-            scrape_metrics.add_sample(
-                f"redfish_{self.metrics_type}_scrape_duration_seconds",
-                value=duration,
-                labels=self.labels,
-            )
-            yield scrape_metrics
-
-
-
-        except Exception as err:
-            logging.exception(
-                f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}: {err}"
-            )
-
-        finally:
-            logging.debug(f"Target {self.target}: Deleting Redfish session with server {self.host}")
-
-            if self._auth_token:
-                session_url = f"https://{self.target}{self._session_url}"
-                headers = {"x-auth-token": self._auth_token}
-
-                logging.debug(f"Target {self.target}: Using URL {session_url}")
-
-                response = requests.delete(
-                    session_url, verify=False, timeout=self._timeout, headers=headers
-                )
-                response.close()
-
-                if response:
-                    logging.info(f"Target {self.target}: Redfish Session deleted successfully.")
-                else:
-                    logging.warning(f"Target {self.target}: Failed to delete session with server {self.host}")
-                    logging.warning(f"Target {self.target}: Token: {self._auth_token}")
-
+            if response:
+                logging.info(f"Target {self.target}: Redfish Session deleted successfully.")
             else:
-                logging.debug(f"Target {self.target}: No Redfish session existing with server {self.host}")
+                logging.warning(f"Target {self.target}: Failed to delete session with server {self.host}")
+                logging.warning(f"Target {self.target}: Token: {self._auth_token}")
 
-            if self._session:
-                logging.info(f"Target {self.target}: Closing requests session.")
-                self._session.close()
+        else:
+            logging.debug(f"Target {self.target}: No Redfish session existing with server {self.host}")
+
+        if self._session:
+            logging.info(f"Target {self.target}: Closing requests session.")
+            self._session.close()
+
+        if exc_type is not None:
+            logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
+            logging.exception(f"Target {self.target}: Exception type: {exc_type}")
+            logging.exception(f"Target {self.target}: Exception value: {exc_val}")
+            logging.exception(f"Target {self.target}: Traceback: {exc_tb}")

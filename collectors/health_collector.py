@@ -5,6 +5,9 @@ import math
 
 class HealthCollector(object):
 
+    def __enter__(self):
+        return self
+
     def __init__(self, redfish_metrics_collector):
 
         self.col = redfish_metrics_collector
@@ -356,3 +359,10 @@ class HealthCollector(object):
             self.get_memory_health()
         else:
             logging.warning(f"Target {self.col.target}: No Memory URL provided! Cannot get memory data!")
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
+            logging.exception(f"Target {self.target}: Exception type: {exc_type}")
+            logging.exception(f"Target {self.target}: Exception value: {exc_val}")
+            logging.exception(f"Target {self.target}: Traceback: {exc_tb}")

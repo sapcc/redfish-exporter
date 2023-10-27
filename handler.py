@@ -89,26 +89,23 @@ class metricsHandler:
 
         logging.debug(f"Target: {self.target}: Using user {usr}")
 
-        # define the parameters for the collection of metrics
-        registry = RedfishMetricsCollector(
+        with RedfishMetricsCollector(
             self._config,
             target=self.target,
             host=self.host,
             usr=usr,
             pwd=pwd, 
             metrics_type = self.metrics_type
-        )
+        ) as registry:
 
-        # open a session with the remote board
-        registry.get_session()
+            # open a session with the remote board
+            registry.get_session()
 
-        try:
-            # collect the actual metrics
-            resp.body = generate_latest(registry)
-            resp.status = falcon.HTTP_200
+            try:
+                # collect the actual metrics
+                resp.body = generate_latest(registry)
+                resp.status = falcon.HTTP_200
 
-        except AttributeError as err:
-            resp.status = falcon.HTTP_500
-            resp.body = json.dumps({'status': 0,
-                               'message': 'Something went wrong, Please try again'
-                               })
+            except AttributeError as err:
+                resp.status = falcon.HTTP_500
+                resp.body = json.dumps({'status': 0, 'message': 'Something went wrong, Please try again'})

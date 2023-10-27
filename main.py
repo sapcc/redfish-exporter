@@ -29,7 +29,7 @@ def falcon_app():
     logging.info("Starting Redfish Prometheus Server on Port %s", port)
 
     api = falcon.API()
-    api.add_route("/redfish",  metricsHandler(config, metrics_type='health'))
+    api.add_route("/health",  metricsHandler(config, metrics_type='health'))
     api.add_route("/firmware", metricsHandler(config, metrics_type='firmware'))
     api.add_route("/performance", metricsHandler(config, metrics_type='performance'))
     api.add_route("/", welcomePage())

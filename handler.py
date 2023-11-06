@@ -108,7 +108,7 @@ class metricsHandler:
                 resp.status = falcon.HTTP_200
 
             except AttributeError as err:
-                resp.status = falcon.HTTP_500
                 resp.body = json.dumps({'status': 0, 'message': f"Something went wrong: {err}"})
+                resp.status = falcon.HTTP_500
                 logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
 

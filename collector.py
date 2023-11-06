@@ -171,20 +171,30 @@ class RedfishMetricsCollector(object):
             req = self._session.get(url, stream=True, timeout=self._timeout)
             req.raise_for_status()
 
-        except requests.exceptions.RequestException as err:
+        except requests.exceptions.HTTPError as err:
             self._last_http_code = err.response.status_code
             if err.response.status_code == 401:
                 logging.error(f"Target {self.target}: Authorization Error: Wrong job provided or user/password set wrong on server {self.host}: {err}")
             else:
                 logging.error(f"Target {self.target}: HTTP Error on server {self.host}: {err}")
 
+        except requests.exceptions.ConnectTimeout:
+            logging.error(f"Target {self.target}: Timeout while connecting to {self.host}")
+            self._last_http_code = 408
+
+        except requests.exceptions.ReadTimeout:
+            logging.error(f"Target {self.target}: Timeout while reading data from {self.host}")
+            self._last_http_code = 408
+
+        except requests.exceptions.ConnectionError as err:
+            logging.error(f"Target {self.target}: Unable to connect to {self.host}: {err}")
+            self._last_http_code = 444
         except:
             logging.error(f"Target {self.target}: Unexpected error: {sys.exc_info()[0]}")
             self._last_http_code = 500
 
-        self._last_http_code = req.status_code
-
         if req != "":
+            self._last_http_code = req.status_code
             try:
                 req_text = req.json()
 

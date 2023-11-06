@@ -78,6 +78,7 @@ class RedfishMetricsCollector(object):
             return
 
         logging.debug(f"Target {self.target}: data received from server {self.host}.")
+
         if not server_response.get("SessionService"):
             logging.warning(f"Target {self.target}: No session service registered on server {self.host}!")
             return
@@ -85,6 +86,7 @@ class RedfishMetricsCollector(object):
         session_service = self.connect_server(
             server_response['SessionService']['@odata.id'], basic_auth=True
         )
+
         if self._last_http_code != 200:
             logging.warning(f"Target {self.target}: Failed to get a session from server {self.host}!")
             self._basic_auth = True
@@ -155,6 +157,7 @@ class RedfishMetricsCollector(object):
 
         if noauth:
             logging.debug(f"Target {self.target}: Using no auth")
+            logging.debug(f"Target {self.target}: Using no auth")
         elif basic_auth or self._basic_auth:
             self._session.auth = (self._username, self._password)
             logging.debug(f"Target {self.target}: Using basic auth with user {self._username}")
@@ -168,31 +171,18 @@ class RedfishMetricsCollector(object):
             req = self._session.get(url, stream=True, timeout=self._timeout)
             req.raise_for_status()
 
-        except requests.exceptions.HTTPError as err:
+        except requests.exceptions.RequestException as err:
             self._last_http_code = err.response.status_code
             if err.response.status_code == 401:
                 logging.error(f"Target {self.target}: Authorization Error: Wrong job provided or user/password set wrong on server {self.host}: {err}")
             else:
                 logging.error(f"Target {self.target}: HTTP Error on server {self.host}: {err}")
 
-        except requests.exceptions.ConnectTimeout:
-            logging.error(f"Target {self.target}: Timeout while connecting to {self.host}")
-            self._last_http_code = 408
-
-        except requests.exceptions.ReadTimeout:
-            logging.error(f"Target {self.target}: Timeout while reading data from {self.host}")
-            self._last_http_code = 408
-
-        except requests.exceptions.ConnectionError as err:
-            logging.error(f"Target {self.target}: Unable to connect to {self.host}: {err}")
-            self._last_http_code = 444
-
         except:
             logging.error(f"Target {self.target}: Unexpected error: {sys.exc_info()[0]}")
             self._last_http_code = 500
 
-        else:
-            self._last_http_code = req.status_code
+        self._last_http_code = req.status_code
 
         if req != "":
             try:
@@ -233,7 +223,7 @@ class RedfishMetricsCollector(object):
         if not systems:
             return
 
-        powerstates = {"off": 0, "on": 1}
+        power_states = {"off": 0, "on": 1}
         # Get the server info for the labels
         self._systems_url = systems['Members'][0]['@odata.id']
         server_info = self.connect_server(self._systems_url)
@@ -241,7 +231,7 @@ class RedfishMetricsCollector(object):
             return
         self.manufacturer = server_info['Manufacturer']
         self.model = server_info['Model']
-        self.powerstate = powerstates[server_info['PowerState'].lower()]
+        self.powerstate = power_states[server_info['PowerState'].lower()]
 
         self.labels.update(
             {
@@ -327,27 +317,27 @@ class RedfishMetricsCollector(object):
             )
             yield powerstate_metrics
 
-            with HealthCollector(self) as metrics:
-                metrics.collect()
+            metrics = HealthCollector(self)
+            metrics.collect()
 
-                yield metrics.mem_metrics_correctable
-                yield metrics.mem_metrics_unorrectable
-                yield metrics.health_metrics
+            yield metrics.mem_metrics_correctable
+            yield metrics.mem_metrics_unorrectable
+            yield metrics.health_metrics
 
         # Get the firmware information
         if self.metrics_type == 'firmware':
-            with FirmwareCollector(self) as metrics:
-                metrics.collect()
+            metrics = FirmwareCollector(self)
+            metrics.collect()
                 
-                yield metrics.fw_metrics
+            yield metrics.fw_metrics
 
         # Get the performance information
         if self.metrics_type == 'performance':
-            with PerformanceCollector(self) as metrics:
-                metrics.collect()
-                
-                yield metrics.power_metrics
-                yield metrics.temperature_metrics
+            metrics = PerformanceCollector(self)
+            metrics.collect()
+            
+            yield metrics.power_metrics
+            yield metrics.temperature_metrics
 
         # Finish with calculating the scrape duration
         duration = round(time.time() - self._start_time, 2)
@@ -392,9 +382,3 @@ class RedfishMetricsCollector(object):
         if self._session:
             logging.info(f"Target {self.target}: Closing requests session.")
             self._session.close()
-
-        if exc_type is not None:
-            logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
-            logging.exception(f"Target {self.target}: Exception type: {exc_type}")
-            logging.exception(f"Target {self.target}: Exception value: {exc_val}")
-            logging.exception(f"Target {self.target}: Traceback: {exc_tb}")

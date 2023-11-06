@@ -40,6 +40,15 @@ class HealthCollector(object):
             if not processor_data:
                 continue
 
+            if "Health" in processor_data["Status"]:
+                proc_status = (
+                    math.nan
+                    if processor_data["Status"]["Health"] is None
+                    else self.col.status[processor_data["Status"]["Health"].lower()]
+                )
+            else:
+                logging.warning(f"Target {self.col.target}: No Processor health data provided for {current_labels['device_name']}!")
+
             current_labels = {
                 "device_type": "processor",
                 "device_name": processor_data.get("Socket", "unknown"),
@@ -50,17 +59,8 @@ class HealthCollector(object):
                 "cpu_threads": str(processor_data.get("TotalThreads", "unknown")),
             }
             current_labels.update(self.col.labels)
-            if processor_data["Status"]["Health"]:
-                self.health_metrics.add_sample(
-                    "redfish_health",
-                    value=self.col.status[processor_data["Status"]["Health"].lower()],
-                    labels=current_labels,
-                )
-            else:
-                logging.warning(f"Target {self.col.target}: No Processor health data provided for {current_labels['name']}!")
-                self.health_metrics.add_sample(
-                    "redfish_health", value=math.nan, labels=current_labels
-                )
+
+            self.health_metrics.add_sample("redfish_health", value=proc_status, labels=current_labels)
 
     def get_storage_health(self):
         logging.debug(f"Target {self.col.target}: Get the storage health data.")
@@ -113,9 +113,8 @@ class HealthCollector(object):
                 "controller_model": controller_details.get("Model", "unknown"),
             }
             current_labels.update(self.col.labels)
-            self.health_metrics.add_sample(
-                "redfish_health", value=controller_status, labels=current_labels
-            )
+
+            self.health_metrics.add_sample("redfish_health", value=controller_status, labels=current_labels)
 
             # Sometimes not all attributes are implemented. Checking if existing one by one.
             disk_attributes = {
@@ -274,7 +273,7 @@ class HealthCollector(object):
                 dimm_health = math.nan
                 dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )  # convert to lower case because there are differences per vendor
 
-                if "state" in dimm_status and dimm_status["state"].lower() == "absent":
+                if "state" in dimm_status and (dimm_status['state'] == None or dimm_status["state"].lower() == "absent"):
                     logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: absent.")
                     continue
 
@@ -361,8 +360,5 @@ class HealthCollector(object):
             logging.warning(f"Target {self.col.target}: No Memory URL provided! Cannot get memory data!")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
-            logging.exception(f"Target {self.target}: Exception type: {exc_type}")
-            logging.exception(f"Target {self.target}: Exception value: {exc_val}")
-            logging.exception(f"Target {self.target}: Traceback: {exc_tb}")
+        if exc_tb is not None:
+            logging.exception(f"Target {self.target}: An exception occured in {exc_tb.tb_frame.f_code.co_filename}:{exc_tb.tb_lineno}")

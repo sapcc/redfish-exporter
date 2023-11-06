@@ -4,6 +4,7 @@ import socket
 import re
 import os
 import json
+import sys
 
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
 from prometheus_client.exposition import generate_latest
@@ -108,4 +109,6 @@ class metricsHandler:
 
             except AttributeError as err:
                 resp.status = falcon.HTTP_500
-                resp.body = json.dumps({'status': 0, 'message': 'Something went wrong, Please try again'})
+                resp.body = json.dumps({'status': 0, 'message': f"Something went wrong: {err}"})
+                logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
+

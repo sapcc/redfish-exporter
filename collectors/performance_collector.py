@@ -120,8 +120,5 @@ class PerformanceCollector(object):
         self.get_temp_metrics()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
-            logging.exception(f"Target {self.target}: Exception type: {exc_type}")
-            logging.exception(f"Target {self.target}: Exception value: {exc_val}")
-            logging.exception(f"Target {self.target}: Traceback: {exc_tb}")
+        if exc_tb is not None:
+            logging.exception(f"Target {self.target}: An exception occured in {exc_tb.tb_frame.f_code.co_filename}:{exc_tb.tb_lineno}")

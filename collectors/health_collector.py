@@ -249,23 +249,9 @@ class HealthCollector(object):
 
         for dimm_url in memory_collection["Members"]:
             dimm_info = self.col.connect_server(dimm_url["@odata.id"])
+
             if not dimm_info:
                 continue
-            current_labels = {
-                "device_type": "memory", 
-                "device_name": dimm_info["Name"],
-                "dimm_capacity": str(dimm_info["CapacityMiB"]),
-                "dimm_speed": str(dimm_info["OperatingSpeedMhz"]),
-                "dimm_type": dimm_info["MemoryDeviceType"],
-            }
-            if "Manufacturer" in dimm_info:
-                manufacturer = dimm_info.get("Manufacturer", "N/A")
-            if "Oem" in dimm_info:
-                if "Hpe" in dimm_info["Oem"]:
-                    manufacturer = dimm_info["Oem"]["Hpe"].get("VendorName", "unknown")
-
-            current_labels.update({"device_manufacturer": manufacturer,})
-            current_labels.update(self.col.labels)
 
             if type(dimm_info["Status"]) == str:
                 dimm_health = self.col.status[dimm_info["Status"].lower()]
@@ -284,6 +270,24 @@ class HealthCollector(object):
 
             if dimm_health is math.nan:
                 logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: No health data found.")
+
+            current_labels = {
+                "device_type": "memory", 
+                "device_name": dimm_info["Name"],
+                "dimm_capacity": str(dimm_info["CapacityMiB"]),
+                "dimm_speed": str(dimm_info["OperatingSpeedMhz"]),
+                "dimm_type": dimm_info["MemoryDeviceType"],
+            }
+
+            if "Manufacturer" in dimm_info:
+                manufacturer = dimm_info.get("Manufacturer", "N/A")
+
+            if "Oem" in dimm_info:
+                if "Hpe" in dimm_info["Oem"]:
+                    manufacturer = dimm_info["Oem"]["Hpe"].get("VendorName", "unknown")
+
+            current_labels.update({"device_manufacturer": manufacturer,})
+            current_labels.update(self.col.labels)
 
             self.health_metrics.add_sample(
                 "redfish_health", value=dimm_health, labels=current_labels

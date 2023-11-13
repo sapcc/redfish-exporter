@@ -4,10 +4,14 @@ import requests
 import logging
 import os
 import time
+import datetime
 import sys
 from collectors.performance_collector import PerformanceCollector
 from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector
+
+import ssl
+import socket
 
 class RedfishMetricsCollector(object):
 
@@ -64,6 +68,7 @@ class RedfishMetricsCollector(object):
         self._auth_token = ""
         self._basic_auth = False
         self._session = ""
+        self.redfish_version = ""
 
     def get_session(self):
         # Get the url for the server info and messure the response time
@@ -95,6 +100,7 @@ class RedfishMetricsCollector(object):
         sessions_url = f"https://{self.target}{session_service['Sessions']['@odata.id']}"
         session_data = {"UserName": self._username, "Password": self._password}
         self._session.auth = None
+        self.redfish_version = server_response['RedfishVersion']
         result = ""
 
         # Try to get a session
@@ -292,24 +298,51 @@ class RedfishMetricsCollector(object):
             up_metrics = GaugeMetricFamily(
                 f"redfish_up",
                 "Server Monitoring for redfish availability",
-                labels=self.labels,
+                labels = self.labels,
             )
             up_metrics.add_sample(
-                f"redfish_up", value=self._redfish_up, labels=self.labels
+                f"redfish_up", 
+                value = self._redfish_up, 
+                labels = self.labels
             )
             yield up_metrics
 
             response_metrics = GaugeMetricFamily(
                 f"redfish_response_duration_seconds",
                 "Server Monitoring for redfish response time",
-                labels=self.labels,
+                labels = self.labels,
             )
             response_metrics.add_sample(
                 f"redfish_response_duration_seconds",
-                value=self._response_time,
-                labels=self.labels,
+                value = self._response_time,
+                labels = self.labels,
             )
             yield response_metrics
+
+        context = ssl.create_default_context()
+        with socket.create_connection((self.host, 443)) as sock:
+            with context.wrap_socket(sock, server_hostname=self.host) as ssock:
+                cert = ssock.getpeercert()
+                cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+                days_left = str((cert_expiry_date - datetime.datetime.now()).days)
+                issuer = dict(x[0] for x in cert['issuer'])
+                current_labels = {
+                    "issuer": issuer['commonName'],
+                    "not_after": cert_expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+
+                current_labels.update(self.labels)
+                cert_metrics = GaugeMetricFamily(
+                    f"redfish_certificate_valid_days",
+                    "Server Monitoring for redfish certificate information",
+                    labels = current_labels,
+                )
+                cert_metrics.add_sample(
+                    f"redfish_certificate",
+                    value = days_left,
+                    labels = current_labels,
+                )
+                yield cert_metrics
 
         if self._redfish_up == 0:
             return
@@ -320,10 +353,10 @@ class RedfishMetricsCollector(object):
             powerstate_metrics = GaugeMetricFamily(
                 "redfish_powerstate",
                 "Server Monitoring Power State Data",
-                labels=self.labels,
+                labels = self.labels,
             )
             powerstate_metrics.add_sample(
-                "redfish_powerstate", value=self.powerstate, labels=self.labels
+                "redfish_powerstate", value = self.powerstate, labels = self.labels
             )
             yield powerstate_metrics
 
@@ -356,13 +389,13 @@ class RedfishMetricsCollector(object):
         scrape_metrics = GaugeMetricFamily(
             f"redfish_{self.metrics_type}_scrape_duration_seconds",
             "Server Monitoring redfish scrabe duration in seconds",
-            labels=self.labels,
+            labels = self.labels,
         )
 
         scrape_metrics.add_sample(
             f"redfish_{self.metrics_type}_scrape_duration_seconds",
-            value=duration,
-            labels=self.labels,
+            value = duration,
+            labels = self.labels,
         )
         yield scrape_metrics
 

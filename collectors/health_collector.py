@@ -307,6 +307,8 @@ class HealthCollector(object):
                         else int(dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"])
                     )
                     self.mem_metrics_correctable.add_sample("redfish_memory_correctable", value=correctable_ecc_error, labels=current_labels)
+                else:
+                    logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No CorrectableECCError Metrics found.")
 
                 if 'UncorrectableECCError' in dimm_metrics["HealthData"]["AlarmTrips"]:
                     uncorrectable_ecc_error = (
@@ -316,6 +318,8 @@ class HealthCollector(object):
                         else int(dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"])
                     )
                     self.mem_metrics_unorrectable.add_sample("redfish_memory_uncorrectable", value=uncorrectable_ecc_error, labels=current_labels)
+                else:
+                    logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No UncorrectableECCError Metrics found.")
 
             else:
                 logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No Dimm Metrics found.")

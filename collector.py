@@ -4,108 +4,11 @@ import requests
 import logging
 import os
 import time
-import datetime
 import sys
 from collectors.performance_collector import PerformanceCollector
 from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector
-
-import ssl
-import socket
-
-class CertMetrics(object):
-
-    def __init__(self, host, labels):
-        self.host = host
-
-        self.labels = labels
-        self.cert_metrics_valid = GaugeMetricFamily(
-            f"redfish_certificate_valid",
-            "Server Monitoring for redfish certificate information",
-            labels = self.labels,
-        )
-        self.cert_metrics_valid_hostname = GaugeMetricFamily(
-            f"redfish_certificate_valid_hostname",
-            "Server Monitoring for redfish certificate information",
-            labels = self.labels,
-        )
-        self.cert_metrics_valid_days = GaugeMetricFamily(
-            f"redfish_certificate_valid_days",
-            "Server Monitoring for redfish certificate information",
-            labels = self.labels,
-        )
-        self.cert_metrics_selfsigned = GaugeMetricFamily(
-            f"redfish_certificate_selfsigned",
-            "Server Monitoring for redfish certificate information",
-            labels = self.labels,
-        )
-
-
-    def collect(self):
-
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        # context.verify_mode = ssl.CERT_NONE
-        days_left = 0
-        cert_valid = 0
-        cert_has_right_hostname = 0
-        cert_selfsigned = 0
-
-        try:
-            sock = socket.create_connection(('example.com', 443))
-            with context.wrap_socket(sock, server_hostname=self.host) as ssock:
-                cert = ssock.getpeercert()
-                cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
-                cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
-                issuer = dict(x[0] for x in cert['issuer'])
-                subject = dict(x[0] for x in cert['subject'])
-                current_labels = {
-                    "issuer": issuer['commonName'],
-                    "subject": subject['commonName'],
-                    "not_after": cert_expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
-                }
-                if issuer['commonName'] == subject['commonName']:
-                    cert_selfsigned = 1
-
-                if subject['commonName'] == self.host:
-                    cert_has_right_hostname = 1
-
-                if cert_days_left > 0 and cert_has_right_hostname:
-                    cert_valid = 1
-
-
-        except ssl.SSLCertVerificationError as e:
-            logging.debug(f"Target {self.target}: Certificate Validation Error: {e}")
-
-        finally:
-            sock.close()
-
-        current_labels.update(self.labels)
-
-        self.cert_metrics_valid.add_sample(
-            f"redfish_certificate_valid",
-            value = cert_valid,
-            labels = current_labels,
-        )
-
-        self.cert_metrics_valid_hostname.add_sample(
-            f"redfish_certificate_valid_hostname",
-            value = cert_has_right_hostname,
-            labels = current_labels,
-        )
-
-        self.cert_metrics_valid_days.add_sample(
-            f"redfish_certificate_valid_days",
-            value = cert_days_left,
-            labels = current_labels,
-        )
-
-        self.cert_metrics_selfsigned.add_sample(
-            f"redfish_certificate_selfsigned",
-            value = cert_selfsigned,
-            labels = current_labels,
-        )
-     
+from collectors.certificate_collector import CertificateCollector
 
 class RedfishMetricsCollector(object):
 
@@ -128,8 +31,9 @@ class RedfishMetricsCollector(object):
         self._last_http_code = 0
         self.powerstate = 0
 
-        self._systems_url = ""
         self.urls = {
+            "Systems": "",
+            "SessionService": "",
             "Memory": "",
             "ManagedBy": "",
             "Processors": "",
@@ -169,6 +73,7 @@ class RedfishMetricsCollector(object):
         logging.info(f"Target {self.target}: Connecting to server {self.host}")
         start_time = time.time()
         server_response = self.connect_server("/redfish/v1", noauth=True)
+
         self._response_time = round(time.time() - start_time, 2)
         logging.info(f"Target {self.target}: Response time: {self._response_time} seconds.")
 
@@ -178,12 +83,19 @@ class RedfishMetricsCollector(object):
 
         logging.debug(f"Target {self.target}: data received from server {self.host}.")
 
-        if not server_response.get("SessionService"):
-            logging.warning(f"Target {self.target}: No session service registered on server {self.host}!")
-            return
+        if "RedfishVersion" in server_response:
+            self.redfish_version = server_response['RedfishVersion']
+        
+        for key in ["Systems", "SessionService"]:
+            if key in server_response:
+                self.urls[key] = server_response[key]['@odata.id']
+            else:
+                logging.warning(f"Target {self.target}: No {key} URL found on server {self.host}!")
+                return
 
         session_service = self.connect_server(
-            server_response['SessionService']['@odata.id'], basic_auth=True
+            self.urls['SessionService'], 
+            basic_auth=True
         )
 
         if self._last_http_code != 200:
@@ -194,7 +106,6 @@ class RedfishMetricsCollector(object):
         sessions_url = f"https://{self.target}{session_service['Sessions']['@odata.id']}"
         session_data = {"UserName": self._username, "Password": self._password}
         self._session.auth = None
-        self.redfish_version = server_response['RedfishVersion']
         result = ""
 
         # Try to get a session
@@ -328,15 +239,14 @@ class RedfishMetricsCollector(object):
         return server_response
 
     def get_base_labels(self):
-        systems = self.connect_server("/redfish/v1/Systems")
+        systems = self.connect_server(self.urls['Systems'])
 
         if not systems:
             return
 
         power_states = {"off": 0, "on": 1}
         # Get the server info for the labels
-        self._systems_url = systems['Members'][0]['@odata.id']
-        server_info = self.connect_server(self._systems_url)
+        server_info = self.connect_server(systems['Members'][0]['@odata.id'])
         if not server_info:
             return
         self.manufacturer = server_info['Manufacturer']
@@ -355,22 +265,17 @@ class RedfishMetricsCollector(object):
         self.server_health = self.status[server_info['Status']['Health'].lower()]
 
         # get the links of the parts for later
+        for key in self.urls.keys():
+            if key in server_info:
+                self.urls[key] = server_info[key]['@odata.id']
+
+        # standard is a list but there are exceptions
         if type(server_info['Links']['Chassis'][0]) == str:
             self.urls['Chassis'] = server_info['Links']['Chassis'][0]
             self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]
         else:
             self.urls['Chassis'] = server_info['Links']['Chassis'][0]['@odata.id']
             self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]['@odata.id']
-        if "Memory" in server_info:
-            self.urls['Memory'] = server_info['Memory']['@odata.id']
-        if "NetworkInterfaces" in server_info:
-            self.urls['NetworkInterfaces'] = server_info['NetworkInterfaces'][
-                "@odata.id"
-            ]
-        if "Processors" in server_info:
-            self.urls['Processors'] = server_info['Processors']['@odata.id']
-        if "Storage" in server_info:
-            self.urls['Storage'] = server_info['Storage']['@odata.id']
 
         self.get_chassis_urls()
 
@@ -402,6 +307,20 @@ class RedfishMetricsCollector(object):
             )
             yield up_metrics
 
+            version_metrics = GaugeMetricFamily(
+                f"redfish_version",
+                "Server Monitoring for redfish availability",
+                labels = self.labels,
+            )
+            version_labels = {'version': self.redfish_version}
+            version_labels.update(self.labels)
+            version_metrics.add_sample(
+                f"redfish_version", 
+                value = 1, 
+                labels = version_labels
+            )
+            yield version_metrics
+
             response_metrics = GaugeMetricFamily(
                 f"redfish_response_duration_seconds",
                 "Server Monitoring for redfish response time",
@@ -414,7 +333,7 @@ class RedfishMetricsCollector(object):
             )
             yield response_metrics
             
-            cert_metrics = CertMetrics(self.host, self.labels)
+            cert_metrics = CertificateCollector(self.host, self.labels)
             cert_metrics.collect()
 
             yield cert_metrics.cert_metrics_valid

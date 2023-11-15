@@ -298,21 +298,24 @@ class HealthCollector(object):
                 if not dimm_metrics:
                     continue
 
-                correctable_ecc_error = (
-                    math.nan
-                    if dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"]
-                    is None
-                    else int(dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"])
-                )
-                self.mem_metrics_correctable.add_sample("redfish_memory_correctable", value=correctable_ecc_error, labels=current_labels)
+                # Lenovo XCC SR650 v3 is missing the entries. Need to catch this.
+                if 'CorrectableECCError' in dimm_metrics["HealthData"]["AlarmTrips"]:
+                    correctable_ecc_error = (
+                        math.nan
+                        if dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"]
+                        is None
+                        else int(dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"])
+                    )
+                    self.mem_metrics_correctable.add_sample("redfish_memory_correctable", value=correctable_ecc_error, labels=current_labels)
 
-                uncorrectable_ecc_error = (
-                    math.nan
-                    if dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"]
-                    is None
-                    else int(dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"])
-                )
-                self.mem_metrics_unorrectable.add_sample("redfish_memory_uncorrectable", value=uncorrectable_ecc_error, labels=current_labels)
+                if 'UncorrectableECCError' in dimm_metrics["HealthData"]["AlarmTrips"]:
+                    uncorrectable_ecc_error = (
+                        math.nan
+                        if dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"]
+                        is None
+                        else int(dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"])
+                    )
+                    self.mem_metrics_unorrectable.add_sample("redfish_memory_uncorrectable", value=uncorrectable_ecc_error, labels=current_labels)
 
             else:
                 logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No Dimm Metrics found.")

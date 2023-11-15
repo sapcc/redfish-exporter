@@ -1,6 +1,7 @@
 from prometheus_client.core import GaugeMetricFamily
 
 import logging
+import math
 
 class PerformanceCollector(object):
 
@@ -42,14 +43,24 @@ class PerformanceCollector(object):
                         for submetric in power_subsystem[metric]:
                             current_labels = {'type': submetric}
                             current_labels.update(self.col.labels)
+                            power_metric_value = (
+                                math.nan
+                                if power_subsystem[metric][submetric] is None
+                                else power_subsystem[metric][submetric]
+                            )
                             self.power_metrics.add_sample(
-                                "redfish_power", value=power_subsystem[metric][submetric], labels=current_labels
+                                "redfish_power", value=power_metric_value, labels=current_labels
                             )
                     else:
                         current_labels = {'type': metric}
                         current_labels.update(self.col.labels)
+                        power_metric_value = (
+                            math.nan
+                            if power_subsystem[metric] is None
+                            else power_subsystem[metric]
+                        )
                         self.power_metrics.add_sample(
-                            "redfish_power", value=power_subsystem[metric], labels=current_labels
+                            "redfish_power", value=power_metric_value, labels=current_labels
                         )
 
             power_supplies_url = power_subsystem['PowerSupplies']['@odata.id']
@@ -72,8 +83,13 @@ class PerformanceCollector(object):
                     current_labels = {'type': metric}
                     current_labels.update(power_supply_labels)
                     if metric in power_supply_metrics:
+                        power_metric_value = (
+                            math.nan
+                            if power_supply_metrics[metric]['Reading'] is None
+                            else power_supply_metrics[metric]['Reading']
+                        )
                         self.power_metrics.add_sample(
-                            "redfish_power", value=power_supply_metrics[metric]['Reading'], labels=current_labels
+                            "redfish_power", value=power_metric_value, labels=current_labels
                         )
 
         # fall back to deprecated URL
@@ -91,8 +107,13 @@ class PerformanceCollector(object):
 
                 for value in values:
                     if value in psu:
+                        power_metric_value = (
+                            math.nan
+                            if psu[value] is None
+                            else psu[value]
+                        )
                         self.power_metrics.add_sample(
-                            f"redfish_power_{value}", value=psu[value], labels=current_labels
+                            f"redfish_power_{value}", value=power_metric_value, labels=current_labels
                         )
         else:
             logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: No power url found.")
@@ -109,8 +130,13 @@ class PerformanceCollector(object):
             for metric in thermal_metrics:
                 current_labels = {'type': metric}
                 current_labels.update(self.col.labels)
+                thermal_metric_value = (
+                    math.nan
+                    if thermal_metrics[metric]['Reading'] is None
+                    else thermal_metrics[metric]['Reading']
+                )
                 self.temperature_metrics.add_sample(
-                    "redfish_temperature", value=thermal_metrics[metric]['Reading'], labels=current_labels
+                    "redfish_temperature", value=thermal_metric_value, labels=current_labels
                 )
 
     def collect(self):

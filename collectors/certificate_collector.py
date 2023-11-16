@@ -34,7 +34,6 @@ class CertificateCollector(object):
 
 
     def collect(self):
-
         context = ssl.create_default_context()
         context.check_hostname = False
         # context.verify_mode = ssl.CERT_NONE
@@ -44,7 +43,7 @@ class CertificateCollector(object):
         cert_selfsigned = 0
 
         try:
-            sock = socket.create_connection(('example.com', 443))
+            sock = socket.create_connection((self.host, 443))
             with context.wrap_socket(sock, server_hostname=self.host) as ssock:
                 cert = ssock.getpeercert()
                 cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')

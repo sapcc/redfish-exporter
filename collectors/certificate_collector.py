@@ -10,6 +10,7 @@ class CertificateCollector(object):
     def __init__(self, host, target, labels):
         self.host = host
         self.target = target
+        self.timeout = 10
 
         self.labels = labels
         self.cert_metrics_valid = GaugeMetricFamily(
@@ -51,6 +52,7 @@ class CertificateCollector(object):
 
         try:
             sock = socket.socket(socket.AF_INET)
+            sock.settimeout(self.timeout)
             conn = context.wrap_socket(sock, server_hostname=self.host)
             conn.connect((self.host, port))
             cert = conn.getpeercert()
@@ -83,7 +85,10 @@ class CertificateCollector(object):
                 logging.debug(f"Target {self.target}: Certificate Validation Error: {e}")
                 logging.debug(f"Target {self.target}: Verify Message: {e.verify_message}")
                 return
-
+        except TimeoutError:
+            logging.debug(f"Target {self.target}: Timeout occured!")
+            return
+        
         finally:
             conn.close()
             sock.close()

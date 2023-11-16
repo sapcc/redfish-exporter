@@ -34,41 +34,56 @@ class CertificateCollector(object):
 
 
     def collect(self):
+        port = 443
         context = ssl.create_default_context()
         context.check_hostname = False
         # context.verify_mode = ssl.CERT_NONE
-        days_left = 0
+        cert_days_left = 0
         cert_valid = 0
         cert_has_right_hostname = 0
         cert_selfsigned = 0
+        current_labels = {
+            "issuer": "n/a",
+            "subject": "n/a",
+            "not_after": "n/a",
+        }
 
         try:
-            sock = socket.create_connection((self.host, 443))
-            with context.wrap_socket(sock, server_hostname=self.host) as ssock:
-                cert = ssock.getpeercert()
-                cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
-                cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
-                issuer = dict(x[0] for x in cert['issuer'])
-                subject = dict(x[0] for x in cert['subject'])
-                current_labels = {
+            sock = socket.socket(socket.AF_INET)
+            conn = context.wrap_socket(sock, server_hostname=self.host)
+            conn.connect((self.host, port))
+            cert = conn.getpeercert()
+            cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z') if 'notAfter' in cert else datetime.datetime.now()
+            cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
+            issuer = dict(x[0] for x in cert['issuer'])
+            subject = dict(x[0] for x in cert['subject'])
+            current_labels.update(
+                {
                     "issuer": issuer['commonName'],
                     "subject": subject['commonName'],
                     "not_after": cert_expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
-                if issuer['commonName'] == subject['commonName'] or subject['commonName'] == "www.example.org":
-                    cert_selfsigned = 1
+            )
+            if issuer['commonName'] == subject['commonName'] or subject['commonName'] == "www.example.org":
+                cert_selfsigned = 1
 
-                if subject['commonName'] == self.host:
-                    cert_has_right_hostname = 1
+            if subject['commonName'] == self.host:
+                cert_has_right_hostname = 1
 
-                if cert_days_left > 0 and cert_has_right_hostname:
-                    cert_valid = 1
+            if cert_days_left > 0 and cert_has_right_hostname:
+                cert_valid = 1
 
 
         except ssl.SSLCertVerificationError as e:
-            logging.debug(f"Target {self.target}: Certificate Validation Error: {e}")
+            if e.verify_message == 'self-signed certificate':
+                cert_selfsigned = 1
+                current_labels.update({"issuer": "self-signed"})
+            else:
+                logging.debug(f"Target {self.target}: Certificate Validation Error: {e}")
+                return
 
         finally:
+            conn.close()
             sock.close()
 
         current_labels.update(self.labels)

@@ -81,6 +81,7 @@ class CertificateCollector(object):
                 current_labels.update({"issuer": "self-signed"})
             else:
                 logging.debug(f"Target {self.target}: Certificate Validation Error: {e}")
+                logging.debug(f"Target {self.target}: Verify Message: {e.verify_message}")
                 return
 
         finally:

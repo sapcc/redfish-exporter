@@ -7,8 +7,9 @@ import datetime
 
 class CertificateCollector(object):
 
-    def __init__(self, host, labels):
+    def __init__(self, host, target, labels):
         self.host = host
+        self.target = target
 
         self.labels = labels
         self.cert_metrics_valid = GaugeMetricFamily(

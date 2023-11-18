@@ -168,7 +168,6 @@ class RedfishMetricsCollector(object):
 
         if noauth:
             logging.debug(f"Target {self.target}: Using no auth")
-            logging.debug(f"Target {self.target}: Using no auth")
         elif basic_auth or self._basic_auth:
             self._session.auth = (self._username, self._password)
             logging.debug(f"Target {self.target}: Using basic auth with user {self._username}")

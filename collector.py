@@ -342,7 +342,7 @@ class RedfishMetricsCollector(object):
             cert_metrics = CertificateCollector(self.host, self.target, self.labels)
             cert_metrics.collect()
 
-            yield cert_metrics.cert_metrics_valid
+            yield cert_metrics.cert_metrics_isvalid
             yield cert_metrics.cert_metrics_valid_hostname
             yield cert_metrics.cert_metrics_valid_days
             yield cert_metrics.cert_metrics_selfsigned

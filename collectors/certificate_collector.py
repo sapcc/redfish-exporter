@@ -11,25 +11,25 @@ class CertificateCollector(object):
         self.host = host
         self.target = target
         self.timeout = 10
-
         self.labels = labels
+
         self.cert_metrics_valid = GaugeMetricFamily(
-            f"redfish_certificate_valid",
+            "redfish_certificate_isvalid",
             "Redfish Server Monitoring certificate is valid",
             labels = self.labels,
         )
         self.cert_metrics_valid_hostname = GaugeMetricFamily(
-            f"redfish_certificate_valid_hostname",
+            "redfish_certificate_valid_hostname",
             "Redfish Server Monitoring certificate has valid hostname",
             labels = self.labels,
         )
         self.cert_metrics_valid_days = GaugeMetricFamily(
-            f"redfish_certificate_valid_days",
+            "redfish_certificate_valid_days",
             "Redfish Server Monitoring certificate valid for days",
             labels = self.labels,
         )
         self.cert_metrics_selfsigned = GaugeMetricFamily(
-            f"redfish_certificate_selfsigned",
+            "redfish_certificate_selfsigned",
             "Redfish Server Monitoring certificate is self-signed",
             labels = self.labels,
         )
@@ -96,25 +96,25 @@ class CertificateCollector(object):
         current_labels.update(self.labels)
 
         self.cert_metrics_valid.add_sample(
-            f"redfish_certificate_valid",
+            "redfish_certificate_isvalid",
             value = cert_valid,
             labels = current_labels,
         )
 
         self.cert_metrics_valid_hostname.add_sample(
-            f"redfish_certificate_valid_hostname",
+            "redfish_certificate_valid_hostname",
             value = cert_has_right_hostname,
             labels = current_labels,
         )
 
         self.cert_metrics_valid_days.add_sample(
-            f"redfish_certificate_valid_days",
+            "redfish_certificate_valid_days",
             value = cert_days_left,
             labels = current_labels,
         )
 
         self.cert_metrics_selfsigned.add_sample(
-            f"redfish_certificate_selfsigned",
+            "redfish_certificate_selfsigned",
             value = cert_selfsigned,
             labels = current_labels,
         )

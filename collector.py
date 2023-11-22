@@ -296,7 +296,7 @@ class RedfishMetricsCollector(object):
         if self.metrics_type == 'health':
             up_metrics = GaugeMetricFamily(
                 f"redfish_up",
-                "Server Monitoring for redfish availability",
+                "Redfish Server Monitoring availability",
                 labels = self.labels,
             )
             up_metrics.add_sample(
@@ -308,7 +308,7 @@ class RedfishMetricsCollector(object):
 
             version_metrics = GaugeMetricFamily(
                 f"redfish_version",
-                "Server Monitoring for redfish availability",
+                "Redfish Server Monitoring redfish version",
                 labels = self.labels,
             )
             version_labels = {'version': self.redfish_version}
@@ -322,7 +322,7 @@ class RedfishMetricsCollector(object):
 
             response_metrics = GaugeMetricFamily(
                 f"redfish_response_duration_seconds",
-                "Server Monitoring for redfish response time",
+                "Redfish Server Monitoring response time",
                 labels = self.labels,
             )
             response_metrics.add_sample(
@@ -349,7 +349,7 @@ class RedfishMetricsCollector(object):
 
             powerstate_metrics = GaugeMetricFamily(
                 "redfish_powerstate",
-                "Server Monitoring Power State Data",
+                "Redfish Server Monitoring Power State Data",
                 labels = self.labels,
             )
             powerstate_metrics.add_sample(
@@ -385,7 +385,7 @@ class RedfishMetricsCollector(object):
 
         scrape_metrics = GaugeMetricFamily(
             f"redfish_{self.metrics_type}_scrape_duration_seconds",
-            "Server Monitoring redfish scrabe duration in seconds",
+            "Redfish Server Monitoring redfish scrabe duration in seconds",
             labels = self.labels,
         )
 

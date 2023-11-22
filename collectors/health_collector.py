@@ -14,17 +14,17 @@ class HealthCollector(object):
 
         self.health_metrics = GaugeMetricFamily(
             "redfish_health",
-            "Server Monitoring Health Data",
+            "Redfish Server Monitoring Health Data",
             labels=self.col.labels,
         )
         self.mem_metrics_correctable = GaugeMetricFamily(
             "redfish_memory_correctable",
-            "Server Monitoring Memory Data for correctable errors",
+            "Redfish Server Monitoring Memory Data for correctable errors",
             labels=self.col.labels,
         )
         self.mem_metrics_unorrectable = GaugeMetricFamily(
             "redfish_memory_uncorrectable",
-            "Server Monitoring Memory Data for uncorrectable errors",
+            "Redfish Server Monitoring Memory Data for uncorrectable errors",
             labels=self.col.labels,
         )
 

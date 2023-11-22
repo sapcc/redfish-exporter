@@ -15,22 +15,22 @@ class CertificateCollector(object):
         self.labels = labels
         self.cert_metrics_valid = GaugeMetricFamily(
             f"redfish_certificate_valid",
-            "Server Monitoring for redfish certificate information",
+            "Redfish Server Monitoring certificate is valid",
             labels = self.labels,
         )
         self.cert_metrics_valid_hostname = GaugeMetricFamily(
             f"redfish_certificate_valid_hostname",
-            "Server Monitoring for redfish certificate information",
+            "Redfish Server Monitoring certificate has valid hostname",
             labels = self.labels,
         )
         self.cert_metrics_valid_days = GaugeMetricFamily(
             f"redfish_certificate_valid_days",
-            "Server Monitoring for redfish certificate information",
+            "Redfish Server Monitoring certificate valid for days",
             labels = self.labels,
         )
         self.cert_metrics_selfsigned = GaugeMetricFamily(
             f"redfish_certificate_selfsigned",
-            "Server Monitoring for redfish certificate information",
+            "Redfish Server Monitoring certificate is self-signed",
             labels = self.labels,
         )
 

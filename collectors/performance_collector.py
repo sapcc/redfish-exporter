@@ -14,17 +14,17 @@ class PerformanceCollector(object):
 
         self.performance_metrics = GaugeMetricFamily(
             "redfish_performance",
-            "Server Monitoring Performance Data",
+            "Redfish Server Monitoring Performance Data",
             labels=self.col.labels,
         )
         self.power_metrics = GaugeMetricFamily(
             "redfish_power",
-            "Server Monitoring Power Data",
+            "Redfish Server Monitoring Power Data",
             labels=self.col.labels,
         )
         self.temperature_metrics = GaugeMetricFamily(
             "redfish_temperature",
-            "Server Monitoring Temperature Data",
+            "Redfish Server Monitoring Temperature Data",
             labels=self.col.labels,
             unit="Celsius"
         )

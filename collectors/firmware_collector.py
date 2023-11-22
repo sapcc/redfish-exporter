@@ -14,7 +14,7 @@ class FirmwareCollector(object):
 
         self.fw_metrics = GaugeMetricFamily(
             "redfish_firmware",
-            "Server Monitoring Firmware Data",
+            "Redfish Server Monitoring Firmware Data",
             labels=self.col.labels,
         )
 

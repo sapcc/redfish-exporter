@@ -13,7 +13,7 @@ class CertificateCollector(object):
         self.timeout = 10
         self.labels = labels
 
-        self.cert_metrics_valid = GaugeMetricFamily(
+        self.cert_metrics_isvalid = GaugeMetricFamily(
             "redfish_certificate_isvalid",
             "Redfish Server Monitoring certificate is valid",
             labels = self.labels,
@@ -95,7 +95,7 @@ class CertificateCollector(object):
 
         current_labels.update(self.labels)
 
-        self.cert_metrics_valid.add_sample(
+        self.cert_metrics_isvalid.add_sample(
             "redfish_certificate_isvalid",
             value = cert_valid,
             labels = current_labels,

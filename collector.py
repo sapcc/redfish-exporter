@@ -332,6 +332,13 @@ class RedfishMetricsCollector(object):
             )
             yield response_metrics
             
+        if self._redfish_up == 0:
+            return
+
+        self.get_base_labels()
+
+        if self.metrics_type == 'health':
+
             cert_metrics = CertificateCollector(self.host, self.target, self.labels)
             cert_metrics.collect()
 
@@ -340,13 +347,6 @@ class RedfishMetricsCollector(object):
             yield cert_metrics.cert_metrics_valid_days
             yield cert_metrics.cert_metrics_selfsigned
 
-
-        if self._redfish_up == 0:
-            return
-
-        self.get_base_labels()
-
-        if self.metrics_type == 'health':
             powerstate_metrics = GaugeMetricFamily(
                 "redfish_powerstate",
                 "Server Monitoring Power State Data",

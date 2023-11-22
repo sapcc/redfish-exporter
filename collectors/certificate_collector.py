@@ -38,7 +38,7 @@ class CertificateCollector(object):
 
     def collect(self):
 
-        logging.info(f"Target {self.col.target}: Collecting data ...")
+        logging.info(f"Target {self.target}: Collecting data ...")
 
         context = ssl.create_default_context()
         context.check_hostname = False

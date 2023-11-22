@@ -381,11 +381,11 @@ class RedfishMetricsCollector(object):
 
         # Finish with calculating the scrape duration
         duration = round(time.time() - self._start_time, 2)
-        logging.info(f"Target {self.target}: Scrape duration: {duration} seconds")
+        logging.info(f"Target {self.target}: {self.metrics_type} scrape duration: {duration} seconds")
 
         scrape_metrics = GaugeMetricFamily(
             f"redfish_{self.metrics_type}_scrape_duration_seconds",
-            "Redfish Server Monitoring redfish scrabe duration in seconds",
+            f"Redfish Server Monitoring redfish {self.metrics_type} scrabe duration in seconds",
             labels = self.labels,
         )
 

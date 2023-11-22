@@ -12,6 +12,7 @@ class CertificateCollector(object):
         self.target = target
         self.timeout = 10
         self.labels = labels
+        self.port = 443
 
         self.cert_metrics_isvalid = GaugeMetricFamily(
             "redfish_certificate_isvalid",
@@ -36,7 +37,9 @@ class CertificateCollector(object):
 
 
     def collect(self):
-        port = 443
+
+        logging.info(f"Target {self.col.target}: Collecting data ...")
+
         context = ssl.create_default_context()
         context.check_hostname = False
         # context.verify_mode = ssl.CERT_NONE
@@ -54,7 +57,7 @@ class CertificateCollector(object):
             sock = socket.socket(socket.AF_INET)
             sock.settimeout(self.timeout)
             conn = context.wrap_socket(sock, server_hostname=self.host)
-            conn.connect((self.host, port))
+            conn.connect((self.host, self.port))
             cert = conn.getpeercert()
             cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z') if 'notAfter' in cert else datetime.datetime.now()
             cert_days_left = (cert_expiry_date - datetime.datetime.now()).days

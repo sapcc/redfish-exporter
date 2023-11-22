@@ -141,7 +141,7 @@ class PerformanceCollector(object):
 
     def collect(self):
 
-        logging.info(f"Target {self.col.target}: Get the firmware information.")
+        logging.info(f"Target {self.col.target}: Collecting data ...")
         self.get_power_metrics()
         self.get_temp_metrics()
 

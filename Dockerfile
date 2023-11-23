@@ -5,7 +5,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     && apt upgrade -y \
     && apt install -y python3.11 \
     && apt install -y python3-pip \
-    && apk install -y curl
+    && apt install -y curl
 
 ARG FOLDERNAME=redfish_exporter
 

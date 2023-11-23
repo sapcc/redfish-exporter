@@ -21,4 +21,8 @@ COPY *.py /${FOLDERNAME}/
 COPY collectors/ /${FOLDERNAME}/collectors/
 COPY config.yml /${FOLDERNAME}/
 
+RUN curl -ks 'https://aia.pki.co.sap.com/aia/SAPNetCA_G2.crt' -o '/usr/local/share/ca-certificates/SAPNetCA_G2.crt'
+RUN curl -ks 'https://cacerts.digicert.com/DigiCertGlobalRootCA.crt' -o '/usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt'
+RUN /usr/sbin/update-ca-certificates
+
 LABEL source_repository="https://github.com/sapcc/redfish-exporter"

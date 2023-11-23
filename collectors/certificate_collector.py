@@ -45,9 +45,23 @@ class CertificateCollector(object):
         context.load_default_certs()
         root_certificates = context.get_ca_certs()
 
-        for cert in root_certificates:
-            issuer = dict(x[0] for x in cert['issuer'])
-            logging.debug(f"Target {self.target}: issuer name: {issuer.get('commonName')}")
+        if root_certificates:
+            for cert in root_certificates:
+                issuer = dict(x[0] for x in cert['issuer'])
+                logging.debug(f"Target {self.target}: issuer name: {issuer.get('commonName')}")
+        else:
+            logging.debug("No Root CA Certs found!")
+
+        context.load_verify_locations(capath='/usr/local/share/ca-certificates')
+        root_certificates = context.get_ca_certs()
+
+        if root_certificates:
+            for cert in root_certificates:
+                issuer = dict(x[0] for x in cert['issuer'])
+                logging.debug(f"Target {self.target}: issuer name: {issuer.get('commonName')}")
+        else:
+            logging.debug("No Root CA Certs found!")
+            
         # context.verify_mode = ssl.CERT_NONE
         cert_days_left = 0
         cert_valid = 0

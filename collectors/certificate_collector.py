@@ -42,6 +42,12 @@ class CertificateCollector(object):
 
         context = ssl.create_default_context()
         context.check_hostname = False
+        context.load_default_certs()
+        root_certificates = context.get_ca_certs()
+
+        for cert in root_certificates:
+            issuer = dict(x[0] for x in cert['issuer'])
+            logging.debug(f"Target {self.target}: issuer name: {issuer.get('commonName')}")
         # context.verify_mode = ssl.CERT_NONE
         cert_days_left = 0
         cert_valid = 0

@@ -2,6 +2,7 @@ from prometheus_client.core import GaugeMetricFamily
 
 import logging
 import ssl
+import OpenSSL
 import socket
 import datetime
 
@@ -35,26 +36,10 @@ class CertificateCollector(object):
             labels = self.labels,
         )
 
-
     def collect(self):
 
         logging.info(f"Target {self.target}: Collecting data ...")
 
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        default_path = ssl.get_default_verify_paths()
-        logging.debug(f"Target {self.target}: Default cert path: {default_path}")
-            
-        root_certificates = context.get_ca_certs()
-
-        if root_certificates:
-            for cert in root_certificates:
-                issuer = dict(x[0] for x in cert['issuer'])
-                logging.info(f"Target {self.target}: issuer name: {issuer.get('commonName')}")
-        else:
-            logging.info("No Root CA Certs found!")
-            
-        context.verify_mode = ssl.CERT_REQUIRED
         cert = None
         cert_days_left = 0
         cert_valid = 0
@@ -67,62 +52,37 @@ class CertificateCollector(object):
         }
 
         try:
-            sock = socket.socket(socket.AF_INET) # use IPv4
-            sock.settimeout(self.timeout)
-            conn = context.wrap_socket(sock, server_hostname=self.host)
-            conn.connect((self.host, self.port))
-            cert = conn.getpeercert()
+            cert = ssl.get_server_certificate((self.host, self.port))
 
-        except ssl.SSLCertVerificationError as e:
+            x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+
+        except OpenSSL.SSL.Error as e:
 
             logging.debug(f"Target {self.target}: Certificate Validation Error!")
-            logging.debug(f"Target {self.target}: Reason: {e.reason}")
-            logging.debug(f"Target {self.target}: Verify Message: {e.verify_message}")
-
-            if e.verify_message == 'self-signed certificate':
-                cert_selfsigned = 1
-                current_labels.update({"issuer": "self-signed"})
-
-            elif e.reason == 'CERTIFICATE_VERIFY_FAILED':
-                try:
-                    cert = e.cert
-                except AttributeError:
-                    pass
-
-            else:
-                return
-
-        except TimeoutError:
-            logging.debug(f"Target {self.target}: Timeout occured!")
+            logging.debug(f"Target {self.target}: {e}")
             return
-        
-        finally:
-            conn.close()
-            sock.close()
 
-        if not cert:
-            logging.debug(f"Target {self.target}: Server did not return a cert info.")
-        else:
-            cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z') if 'notAfter' in cert else datetime.datetime.now()
-            cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
-            issuer = dict(x[0] for x in cert['issuer'])
-            subject = dict(x[0] for x in cert['subject'])
-            current_labels.update(
-                {
-                    "issuer": issuer['commonName'],
-                    "subject": subject['commonName'],
-                    "not_after": cert_expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
-                }
-            )
-            if issuer['commonName'] == subject['commonName'] or subject['commonName'] == "www.example.org":
-                cert_selfsigned = 1
+        subject = [value.decode('utf-8') for name, value in x509.get_subject().get_components() if name.decode('utf-8') == 'CN'][0]
+        issuer = [value.decode('utf-8') for name, value in x509.get_issuer().get_components() if name.decode('utf-8') == 'CN'][0]
 
-            if subject['commonName'] == self.host:
-                cert_has_right_hostname = 1
+        cert_expiry_date = datetime.datetime.strptime(x509.get_notAfter().decode('utf-8'), '%Y%m%d%H%M%S%fZ') if x509.get_notAfter().decode('utf-8') else datetime.datetime.now()
+        cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
+        current_labels.update(
+            {
+                "issuer": issuer,
+                "subject": subject,
+                "not_after": cert_expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
 
-            if cert_days_left > 0 and cert_has_right_hostname:
-                cert_valid = 1
+        if issuer == subject:
+            cert_selfsigned = 1
 
+        if subject == self.host:
+            cert_has_right_hostname = 1
+
+        if cert_days_left > 0 and cert_has_right_hostname:
+            cert_valid = 1
 
         current_labels.update(self.labels)
 

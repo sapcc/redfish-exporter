@@ -42,11 +42,9 @@ class CertificateCollector(object):
 
         context = ssl.create_default_context()
         context.check_hostname = False
-        context.load_default_certs()
         default_path = ssl.get_default_verify_paths()
         logging.debug(f"Target {self.target}: Default cert path: {default_path}")
             
-        context.load_verify_locations(cafile='/usr/local/share/ca-certificates/SAPNetCA_G2.crt')
         root_certificates = context.get_ca_certs()
 
         if root_certificates:
@@ -57,6 +55,7 @@ class CertificateCollector(object):
             logging.info("No Root CA Certs found!")
             
         context.verify_mode = ssl.CERT_REQUIRED
+        cert = None
         cert_days_left = 0
         cert_valid = 0
         cert_has_right_hostname = 0
@@ -68,7 +67,7 @@ class CertificateCollector(object):
         }
 
         try:
-            sock = socket.socket(socket.AF_INET)
+            sock = socket.socket(socket.AF_INET) # use IPv4
             sock.settimeout(self.timeout)
             conn = context.wrap_socket(sock, server_hostname=self.host)
             conn.connect((self.host, self.port))
@@ -84,8 +83,11 @@ class CertificateCollector(object):
                 cert_selfsigned = 1
                 current_labels.update({"issuer": "self-signed"})
 
-            elif e.verify_message == 'unable to get issuer certificate':
-                cert = e.cert
+            elif e.reason == 'CERTIFICATE_VERIFY_FAILED':
+                try:
+                    cert = e.cert
+                except AttributeError:
+                    pass
 
             else:
                 return
@@ -98,7 +100,9 @@ class CertificateCollector(object):
             conn.close()
             sock.close()
 
-        if cert:
+        if not cert:
+            logging.debug(f"Target {self.target}: Server did not return a cert info.")
+        else:
             cert_expiry_date = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z') if 'notAfter' in cert else datetime.datetime.now()
             cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
             issuer = dict(x[0] for x in cert['issuer'])

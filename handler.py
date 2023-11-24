@@ -88,7 +88,7 @@ class metricsHandler:
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, "job")
 
-        logging.debug(f"Target: {self.target}: Using user {usr}")
+        logging.debug(f"Target {self.target}: Using user {usr}")
 
         with RedfishMetricsCollector(
             self._config,

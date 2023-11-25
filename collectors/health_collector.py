@@ -322,7 +322,7 @@ class HealthCollector(object):
                     logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No UncorrectableECCError Metrics found.")
 
             else:
-                logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No Dimm Metrics found.")
+                logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No Dimm Metrics found.")
 
     def collect(self):
 

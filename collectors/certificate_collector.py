@@ -41,6 +41,7 @@ class CertificateCollector(object):
         logging.info(f"Target {self.target}: Collecting data ...")
 
         cert = None
+        x509 = None
         cert_days_left = 0
         cert_valid = 0
         cert_has_right_hostname = 0
@@ -53,36 +54,45 @@ class CertificateCollector(object):
 
         try:
             cert = ssl.get_server_certificate((self.host, self.port))
-
             x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
 
         except OpenSSL.SSL.Error as e:
 
             logging.debug(f"Target {self.target}: Certificate Validation Error!")
             logging.debug(f"Target {self.target}: {e}")
-            return
 
-        subject = [value.decode('utf-8') for name, value in x509.get_subject().get_components() if name.decode('utf-8') == 'CN'][0]
-        issuer = [value.decode('utf-8') for name, value in x509.get_issuer().get_components() if name.decode('utf-8') == 'CN'][0]
+        if cert and x509:
+            subject = [value.decode('utf-8') for name, value in x509.get_subject().get_components() if name.decode('utf-8') == 'CN'][0]
+            issuer = [value.decode('utf-8') for name, value in x509.get_issuer().get_components() if name.decode('utf-8') == 'CN'][0]
 
-        cert_expiry_date = datetime.datetime.strptime(x509.get_notAfter().decode('utf-8'), '%Y%m%d%H%M%S%fZ') if x509.get_notAfter().decode('utf-8') else datetime.datetime.now()
-        cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
-        current_labels.update(
-            {
-                "issuer": issuer,
-                "subject": subject,
-                "not_after": cert_expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
-            }
-        )
+            cert_expiry_date = datetime.datetime.strptime(x509.get_notAfter().decode('utf-8'), '%Y%m%d%H%M%S%fZ') if x509.get_notAfter().decode('utf-8') else datetime.datetime.now()
+            cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
+            current_labels.update(
+                {
+                    "issuer": issuer,
+                    "subject": subject,
+                    "not_after": cert_expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )
 
-        if issuer == subject:
-            cert_selfsigned = 1
+            if issuer == subject:
+                logging.warning(f"Target {self.target}: Certificate is self-signed. Issuer: {issuer}, Subject: {subject}")
+                cert_selfsigned = 1
+            else:
+                logging.info(f"Target {self.target}: Certificate not self-signed. Issuer: {issuer}, Subject: {subject}")
 
-        if subject == self.host:
-            cert_has_right_hostname = 1
+            if subject == self.host:
+                logging.info(f"Target {self.target}: Certificate has right hostname.")
+                cert_has_right_hostname = 1
+            else:
+                logging.warning(f"Target {self.target}: Certificate has wrong hostname. Hostname: {self.host}, Subject: {subject}")
 
-        if cert_days_left > 0 and cert_has_right_hostname:
-            cert_valid = 1
+            if cert_days_left > 0:
+                logging.info(f"Target {self.target}: Certificate still valid. Days left: {cert_days_left}")
+                if cert_has_right_hostname:
+                    cert_valid = 1
+            else:
+                logging.warning(f"Target {self.target}: Certificate not valid. Days left: {cert_days_left}")
 
         current_labels.update(self.labels)
 

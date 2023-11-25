@@ -54,7 +54,6 @@ class metricsHandler:
 
         resp.set_header("Content-Type", CONTENT_TYPE_LATEST)
 
-        self.host = self.target
         if ip_re.match(self.target):
             logging.debug(f"Target {self.target}: Target is an IP Address.")
             try:
@@ -62,16 +61,18 @@ class metricsHandler:
                 if host:
                     self.host = host
             except socket.herror as err:
-                logging.warning(f"Target {self.target}: Reverse DNS lookup failed: {err}")
-                
+                logging.error(f"Target {self.target}: Reverse DNS lookup failed: {err}")
+                raise falcon.HTTPInvalidParam(msg, "target")
         else:
             logging.debug(f"Target {self.target}: Target is a hostname.")
             try:
                 target = socket.gethostbyname(self.host)
                 if target:
+                    self.host = self.target
                     self.target = target
             except socket.gaierror as err:
-                logging.warning(f"Target {self.target}: DNS lookup failed: {err}")
+                logging.error(f"Target {self.target}: DNS lookup failed: {err}")
+                raise falcon.HTTPInvalidParam(msg, "target")
 
         usr_env_var = self._job.replace("-", "_").upper() + "_USERNAME"
         pwd_env_var = self._job.replace("-", "_").upper() + "_PASSWORD"

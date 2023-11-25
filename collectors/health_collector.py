@@ -104,7 +104,7 @@ class HealthCollector(object):
                     else self.col.status[controller_details["Status"]["Health"].lower()]
                 )
             else:
-                logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Controller {controller_name}: No health data found.")
+                logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Controller {controller_name}: No health data found.")
 
             current_labels = {
                 "device_type": "storage",
@@ -152,7 +152,7 @@ class HealthCollector(object):
                         "redfish_health", value=disk_status, labels=current_labels
                     )
                 else:
-                    logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Disk {disk_data['name']}: No health data found.")
+                    logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Disk {disk_data['name']}: No health data found.")
 
     def get_chassis_health(self):
         logging.debug(f"Target {self.col.target}: Get the Chassis health data.")
@@ -196,7 +196,7 @@ class HealthCollector(object):
                         psu_health = ( math.nan if psu_status["state"]  is None else self.col.status[psu_status["state"].lower()] )
 
             if psu_health is math.nan:
-                logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, PSU {psu_name}: No health data found.")
+                logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, PSU {psu_name}: No health data found.")
 
             self.health_metrics.add_sample(
                 "redfish_health", value=psu_health, labels=current_labels
@@ -234,7 +234,7 @@ class HealthCollector(object):
                         )
 
             if fan_health is math.nan:
-                logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Fan {fan['Name']}: No health data found.")
+                logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Fan {fan['Name']}: No health data found.")
 
             self.health_metrics.add_sample(
                 "redfish_health", value=fan_health, labels=current_labels
@@ -260,7 +260,7 @@ class HealthCollector(object):
                 dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )  # convert to lower case because there are differences per vendor
 
                 if "state" in dimm_status and (dimm_status['state'] == None or dimm_status["state"].lower() == "absent"):
-                    logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: absent.")
+                    logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: absent.")
                     continue
 
                 if "health" in dimm_status:
@@ -269,7 +269,7 @@ class HealthCollector(object):
                     dimm_health = ( math.nan if dimm_info["Status"]["State"]  is None else self.col.status[dimm_info["Status"]["State"].lower()] )
 
             if dimm_health is math.nan:
-                logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: No health data found.")
+                logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: No health data found.")
 
             current_labels = {
                 "device_type": "memory", 
@@ -308,7 +308,7 @@ class HealthCollector(object):
                     )
                     self.mem_metrics_correctable.add_sample("redfish_memory_correctable", value=correctable_ecc_error, labels=current_labels)
                 else:
-                    logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No CorrectableECCError Metrics found.")
+                    logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No CorrectableECCError Metrics found.")
 
                 if 'UncorrectableECCError' in dimm_metrics["HealthData"]["AlarmTrips"]:
                     uncorrectable_ecc_error = (
@@ -319,7 +319,7 @@ class HealthCollector(object):
                     )
                     self.mem_metrics_unorrectable.add_sample("redfish_memory_uncorrectable", value=uncorrectable_ecc_error, labels=current_labels)
                 else:
-                    logging.debug(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No UncorrectableECCError Metrics found.")
+                    logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No UncorrectableECCError Metrics found.")
 
             else:
                 logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No Dimm Metrics found.")

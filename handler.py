@@ -65,10 +65,10 @@ class metricsHandler:
                 raise falcon.HTTPInvalidParam(msg, "target")
         else:
             logging.debug(f"Target {self.target}: Target is a hostname.")
+            self.host = self.target
             try:
                 target = socket.gethostbyname(self.host)
                 if target:
-                    self.host = self.target
                     self.target = target
             except socket.gaierror as err:
                 logging.error(f"Target {self.target}: DNS lookup failed: {err}")
@@ -79,13 +79,8 @@ class metricsHandler:
         usr = os.getenv(usr_env_var, self._config.get("username"))
         pwd = os.getenv(pwd_env_var, self._config.get("password"))
 
-        if not usr:
-            msg = f"Target {self.target}: Unknown job provided or no user found in environment and config file: {self._job}"
-            logging.error(msg)
-            raise falcon.HTTPInvalidParam(msg, "job")
-
-        if not pwd:
-            msg = f"Target {self.target}: Unknown job provided or no password found in environment and config file: {self._job}, {usr}"
+        if not usr or not pwd:
+            msg = f"Target {self.target}: Unknown job provided or no user/password found in environment and config file: {self._job}"
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, "job")
 
@@ -93,10 +88,10 @@ class metricsHandler:
 
         with RedfishMetricsCollector(
             self._config,
-            target=self.target,
-            host=self.host,
-            usr=usr,
-            pwd=pwd, 
+            target = self.target,
+            host = self.host,
+            usr = usr,
+            pwd = pwd, 
             metrics_type = self.metrics_type
         ) as registry:
 

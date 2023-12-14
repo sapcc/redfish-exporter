@@ -34,17 +34,15 @@ class metricsHandler:
     def on_get(self, req, resp):
         self.target = req.get_param("target")
         if not self.target:
-            msg = "No target parameter provided!"
-            logging.error(msg)
+            logging.error("No target parameter provided!")
             raise falcon.HTTPMissingParam("target")
 
         logging.debug(f"Received Target: {self.target}")
 
         self._job = req.get_param("job")
         if not self._job:
-            msg = f"Target {self.target}: No job provided!"
-            logging.error(msg)
-            raise falcon.HTTPInvalidParam(msg, "job")
+            logging.error(f"Target {self.target}: No job provided!")
+            raise falcon.HTTPMissingParam("job")
 
         logging.debug(f"Received Job: {self._job}")
 
@@ -61,7 +59,8 @@ class metricsHandler:
                 if host:
                     self.host = host
             except socket.herror as err:
-                logging.error(f"Target {self.target}: Reverse DNS lookup failed: {err}")
+                msg = f"Target {self.target}: Reverse DNS lookup failed: {err}"
+                logging.error(msg)
                 raise falcon.HTTPInvalidParam(msg, "target")
         else:
             logging.debug(f"Target {self.target}: Target is a hostname.")
@@ -71,7 +70,8 @@ class metricsHandler:
                 if target:
                     self.target = target
             except socket.gaierror as err:
-                logging.error(f"Target {self.target}: DNS lookup failed: {err}")
+                msg = f"Target {self.target}: DNS lookup failed: {err}"
+                logging.error(msg)
                 raise falcon.HTTPInvalidParam(msg, "target")
 
         usr_env_var = self._job.replace("-", "_").upper() + "_USERNAME"

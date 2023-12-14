@@ -5,6 +5,7 @@ import logging
 import os
 import time
 import sys
+import re
 from collectors.performance_collector import PerformanceCollector
 from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector
@@ -50,6 +51,7 @@ class RedfishMetricsCollector(object):
 
         self.manufacturer = ""
         self.model = ""
+        self.serial = ""
         self.status = {
             "ok": 0,
             "operable": 0,
@@ -251,13 +253,15 @@ class RedfishMetricsCollector(object):
         self.manufacturer = server_info['Manufacturer']
         self.model = server_info['Model']
         self.powerstate = power_states[server_info['PowerState'].lower()]
+        # Dell has the Serial# in the SKU field, others in the SerialNumber field.
+        self.serial = server_info['SKU'] if "SKU" in server_info and re.match(r'^[Dd]ell.*', server_info['Manufacturer']) else server_info['SerialNumber']
 
         self.labels.update(
             {
                 "host": self.host,
-                "server_manufacturer": server_info['Manufacturer'],
-                "server_model": server_info['Model'],
-                "server_serial": (server_info['SKU'] if "SKU" in server_info else server_info['SerialNumber'])
+                "server_manufacturer": self.manufacturer,
+                "server_model": self.model,
+                "server_serial": self.serial
             }
         )
 

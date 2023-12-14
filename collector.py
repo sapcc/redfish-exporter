@@ -66,7 +66,7 @@ class RedfishMetricsCollector(object):
         self._auth_token = ""
         self._basic_auth = False
         self._session = ""
-        self.redfish_version = ""
+        self.redfish_version = "not available"
 
     def get_session(self):
         # Get the url for the server info and messure the response time

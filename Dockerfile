@@ -27,3 +27,4 @@ RUN curl -ks 'https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem' -o '/us
 RUN /usr/sbin/update-ca-certificates
 
 LABEL source_repository="https://github.com/sapcc/redfish-exporter"
+LABEL maintainer="Bernd Kuespert <bernd.kuespert@sap.com>"

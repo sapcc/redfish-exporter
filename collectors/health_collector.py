@@ -178,8 +178,10 @@ class HealthCollector(object):
             return
 
         for psu in power_data["PowerSupplies"]:
-            psu_name = psu.get("Name", "unknown")
-            psu_model = psu.get("Model", "unknown")
+            psu_name = psu["Name"] if "Name" in psu and psu["Name"] != None else "unknown"
+            # HPE ILO5 is missing the PSU Model
+            psu_model = psu["Model"] if "Model" in psu and psu["Model"] != None else "unknown"
+
             current_labels = {
                     "device_type": "powersupply", 
                     "device_name": psu_name, 
@@ -253,20 +255,23 @@ class HealthCollector(object):
             if not dimm_info:
                 continue
 
-            if type(dimm_info["Status"]) == str:
-                dimm_health = self.col.status[dimm_info["Status"].lower()]
-            else:
-                dimm_health = math.nan
-                dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )  # convert to lower case because there are differences per vendor
+            dimm_health = math.nan
 
-                if "state" in dimm_status and (dimm_status['state'] == None or dimm_status["state"].lower() == "absent"):
-                    logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: absent.")
-                    continue
+            # HPE DL560 Gen10 has no Dimm Status
+            if "Status" in dimm_info:
+                if type(dimm_info["Status"]) == str:
+                    dimm_health = self.col.status[dimm_info["Status"].lower()]
+                else:
+                    dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )  # convert to lower case because there are differences per vendor
 
-                if "health" in dimm_status:
-                    dimm_health = ( math.nan if dimm_info["Status"]["Health"] is None else self.col.status[dimm_info["Status"]["Health"].lower()] )
-                elif "state" in dimm_status:
-                    dimm_health = ( math.nan if dimm_info["Status"]["State"]  is None else self.col.status[dimm_info["Status"]["State"].lower()] )
+                    if "state" in dimm_status and (dimm_status['state'] == None or dimm_status["state"].lower() == "absent"):
+                        logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: absent.")
+                        continue
+
+                    if "health" in dimm_status:
+                        dimm_health = ( math.nan if dimm_info["Status"]["Health"] is None else self.col.status[dimm_info["Status"]["Health"].lower()] )
+                    elif "state" in dimm_status:
+                        dimm_health = ( math.nan if dimm_info["Status"]["State"]  is None else self.col.status[dimm_info["Status"]["State"].lower()] )
 
             if dimm_health is math.nan:
                 logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: No health data found.")

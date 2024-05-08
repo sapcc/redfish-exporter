@@ -1,9 +1,19 @@
-from prometheus_client.core import GaugeMetricFamily
+"""
+The collector for firmware information is implemented in the FirmwareCollector class.
+The collect method retrieves the firmware information from the Redfish API and adds it to the firmware metrics.
+The collect method is called by the collect method of the RedfishMetricsCollector class.
+The __enter__ and __exit__ methods are used to manage the lifecycle of the FirmwareCollector class.
+"""
 
 import logging
 from re import search
 
-class FirmwareCollector(object):
+from prometheus_client.core import GaugeMetricFamily
+
+class FirmwareCollector:
+    """
+    Collects firmware information from the Redfish API.
+    """
 
     def __enter__(self):
         return self
@@ -19,14 +29,17 @@ class FirmwareCollector(object):
         )
 
     def collect(self):
+        """
+        Collects firmware information from the Redfish API.
+        """
 
-        logging.info(f"Target {self.col.target}: Get the firmware information.")
+        logging.info("Target %s: Get the firmware information.", self.col.target)
 
         fw_collection = self.col.connect_server(
             "/redfish/v1/UpdateService/FirmwareInventory"
         )
         if not fw_collection:
-            logging.warning(f"Target {self.target}: Cannot get Firmware data!")
+            logging.warning("Target %s: Cannot get Firmware data!", self.col.target)
             return
 
         for fw_member in fw_collection['Members']:
@@ -54,11 +67,18 @@ class FirmwareCollector(object):
 
                 if "Version" in fw_item:
                     version = fw_item['Version']
-                    if version != "N/A" and version != None:
+                    if version != "N/A" and version is not None:
                         current_labels.update({"version": version})
                         current_labels.update(self.col.labels)
-                        self.fw_metrics.add_sample("redfish_firmware", value=1, labels=current_labels)
+                        self.fw_metrics.add_sample(
+                            "redfish_firmware",
+                            value=1,
+                            labels=current_labels
+                        )
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb is not None:
-            logging.exception(f"Target {self.target}: An exception occured in {exc_tb.f_code.co_filename}:{exc_tb.tb_lineno}")
+            logging.exception(
+                "Target %s: An exception occured in {exc_tb.f_code.co_filename}:{exc_tb.tb_lineno}",
+                self.col.target
+            )

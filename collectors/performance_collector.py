@@ -1,10 +1,10 @@
-from prometheus_client.core import GaugeMetricFamily
-
+"""Collects performance, thermal and power information from the Redfish API like."""
 import logging
 import math
+from prometheus_client.core import GaugeMetricFamily
 
-class PerformanceCollector(object):
-
+class PerformanceCollector:
+    """Collects performance information from the Redfish API."""
     def __enter__(self):
         return self
 
@@ -28,12 +28,15 @@ class PerformanceCollector(object):
             labels=self.col.labels,
             unit="Celsius"
         )
+        self.target = None
 
     def get_power_metrics(self):
-        logging.debug(f"Target {self.col.target}: Get the PDU Power data.")
+        """Get the Power data from the Redfish API."""
+        logging.debug("Target %s: Get the PDU Power data.", self.col.target)
 
         if self.col.urls['PowerSubsystem']:
 
+            no_psu_metrics = True
             power_subsystem = self.col.connect_server(self.col.urls['PowerSubsystem'])
             metrics = ['CapacityWatts', 'Allocation']
 
@@ -72,6 +75,17 @@ class PerformanceCollector(object):
             for power_supply in power_supplies:
                 power_supply_labels = {}
                 power_supply_data = self.col.connect_server(power_supply['@odata.id'])
+
+                if 'Metrics' not in power_supply_data:
+                    logging.warning(
+                        "Target %s, Host %s, Model %s: No power supply metrics url found for %s.",
+                        self.col.target,
+                        self.col.host,
+                        self.col.model,
+                        power_supply_data.get('Name', 'unknown')
+                    )
+                    continue
+
                 for field in fields:
                     power_supply_labels.update({field: power_supply_data.get(field, 'unknown')})
 
@@ -79,6 +93,7 @@ class PerformanceCollector(object):
 
                 power_supply_metrics_url = power_supply_data['Metrics']['@odata.id']
                 power_supply_metrics = self.col.connect_server(power_supply_metrics_url)
+                no_psu_metrics = False
                 for metric in metrics:
                     current_labels = {'type': metric}
                     current_labels.update(power_supply_labels)
@@ -93,34 +108,48 @@ class PerformanceCollector(object):
                         )
 
         # fall back to deprecated URL
-        elif self.col.urls['Power']:
+        if self.col.urls['Power'] and no_psu_metrics:
             power_data = self.col.connect_server(self.col.urls['Power'])
             if not power_data:
                 return
-    
-            values = ['PowerOutputWatts', 'EfficiencyPercent', 'PowerInputWatts', 'LineInputVoltage']
+
+            values = [
+                'PowerOutputWatts',
+                'EfficiencyPercent',
+                'PowerInputWatts',
+                'LineInputVoltage'
+            ]
             for psu in power_data['PowerSupplies']:
-                psu_name = psu.get('Name', 'unknown')
-                psu_model = psu.get('Model', 'unknown')
+                psu_name = 'unknown' if psu.get('Name', 'unknown') is None else psu.get('Name', 'unknown')
+                psu_model = 'unknown' if psu.get('Model', 'unknown') is None else psu.get('Model', 'unknown')
                 current_labels = {'type': 'powersupply', 'name': psu_name, 'model': psu_model}
                 current_labels.update(self.col.labels)
 
                 for value in values:
                     if value in psu:
+                        no_psu_metrics = False
                         power_metric_value = (
                             math.nan
                             if psu[value] is None
                             else psu[value]
                         )
                         self.power_metrics.add_sample(
-                            f"redfish_power_{value}", value=power_metric_value, labels=current_labels
+                            f"redfish_power_{value}",
+                            value=power_metric_value,
+                            labels=current_labels
                         )
-        else:
-            logging.warning(f"Target {self.col.target}, Host {self.col.host}, Model {self.col.model}: No power url found.")
+        if no_psu_metrics:
+            logging.warning(
+                "Target %s, Host %s, Model %s: No power url found.",
+                self.col.target,
+                self.col.host,
+                self.col.model
+            )
 
 
     def get_temp_metrics(self):
-        logging.debug(f"Target {self.col.target}: Get the Thermal data.")
+        """Get the Thermal data from the Redfish API."""
+        logging.debug("Target %s: Get the Thermal data.", self.col.target)
 
         if self.col.urls['ThermalSubsystem']:
             thermal_subsystem = self.col.connect_server(self.col.urls['ThermalSubsystem'])
@@ -140,11 +169,16 @@ class PerformanceCollector(object):
                 )
 
     def collect(self):
-
-        logging.info(f"Target {self.col.target}: Collecting data ...")
+        """Collects performance information from the Redfish API."""
+        logging.info("Target %s: Collecting data ...",self.col.target)
         self.get_power_metrics()
         self.get_temp_metrics()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb is not None:
-            logging.exception(f"Target {self.target}: An exception occured in {exc_tb.tb_frame.f_code.co_filename}:{exc_tb.tb_lineno}")
+            logging.exception(
+                "Target %s: An exception occured in %s:%s",
+                self.col.target,
+                exc_tb.tb_frame.f_code.co_filename,
+                exc_tb.tb_lineno
+            )

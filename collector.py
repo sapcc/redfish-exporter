@@ -137,7 +137,9 @@ class RedfishMetricsCollector:
                 "Target %s: No session received from server %s: %s",
                 self.target, self.host, err
             )
-            logging.warning("Target %s: Switching to basic authentication.")
+            logging.warning("Target %s: Switching to basic authentication.",
+                    self.target
+            )
             self._basic_auth = True
 
         except requests.exceptions.ReadTimeout as err:
@@ -145,7 +147,9 @@ class RedfishMetricsCollector:
                 "Target %s: No session received from server %s: %s",
                 self.target, self.host, err
             )
-            logging.warning("Target %s: Switching to basic authentication.")
+            logging.warning("Target %s: Switching to basic authentication.",
+                    self.target
+            )
             self._basic_auth = True
 
         if result:

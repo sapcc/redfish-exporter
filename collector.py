@@ -92,7 +92,12 @@ class RedfishMetricsCollector:
             if key in server_response:
                 self.urls[key] = server_response[key]['@odata.id']
             else:
-                logging.warning("Target %s: No %s URL found on server %s!", self.target, key, self.host)
+                logging.warning(
+                    "Target %s: No %s URL found on server %s!",
+                    self.target,
+                    key,
+                    self.host
+                )
                 return
 
         session_service = self.connect_server(
@@ -101,7 +106,11 @@ class RedfishMetricsCollector:
         )
 
         if self._last_http_code != 200:
-            logging.warning("Target %s: Failed to get a session from server %s!", self.target, self.host)
+            logging.warning(
+                "Target %s: Failed to get a session from server %s!",
+                self.target,
+                self.host
+            )
             self._basic_auth = True
             return
 
@@ -118,7 +127,10 @@ class RedfishMetricsCollector:
             result.raise_for_status()
 
         except requests.exceptions.ConnectionError:
-            logging.warning("Target %s: Failed to get an auth token from server %s. Retrying ...", self.target, self.host)
+            logging.warning(
+                "Target %s: Failed to get an auth token from server %s. Retrying ...",
+                self.target, self.host
+            )
             try:
                 result = self._session.post(
                     sessions_url, json=session_data, verify=False, timeout=self._timeout
@@ -239,18 +251,31 @@ class RedfishMetricsCollector:
             # if the request fails the server might give a hint in the ExtendedInfo field
             else:
                 if req_text:
-                    logging.debug("Target %s: {req_text['error']['code']}: {req_text['error']['message']}", self.target)
+                    logging.debug(
+                        "Target %s: %s: %s",
+                        self.target,
+                        req_text['error']['code'],
+                        req_text['error']['message']
+                    )
 
                     if "@Message.ExtendedInfo" in req_text['error']:
 
                         if isinstance(req_text['error']['@Message.ExtendedInfo'], list):
                             if "Message" in req_text['error']['@Message.ExtendedInfo'][0]:
-                                logging.debug("Target %s: {req_text['error']['@Message.ExtendedInfo'][0]['Message']}")
+                                logging.debug(
+                                    "Target %s: %s",
+                                    self.target,
+                                    req_text['error']['@Message.ExtendedInfo'][0]['Message']
+                                )
 
                         elif isinstance(req_text['error']['@Message.ExtendedInfo'], dict):
 
                             if "Message" in req_text['error']['@Message.ExtendedInfo']:
-                                logging.debug("Target %s: {req_text['error']['@Message.ExtendedInfo']['Message']}")
+                                logging.debug(
+                                    "Target %s: %s",
+                                    self.target,
+                                    req_text['error']['@Message.ExtendedInfo']['Message']
+                                )
                         else:
                             pass
 
@@ -291,9 +316,9 @@ class RedfishMetricsCollector:
         self.server_health = self.status[server_info['Status']['Health'].lower()]
 
         # get the links of the parts for later
-        for key in self.urls.keys():
-            if key in server_info:
-                self.urls[key] = server_info[key]['@odata.id']
+        for url in self.urls:
+            if url in server_info:
+                self.urls[url] = server_info[url]['@odata.id']
 
         # standard is a list but there are exceptions
         if isinstance(server_info['Links']['Chassis'][0], str):
@@ -309,7 +334,7 @@ class RedfishMetricsCollector:
         """Get the urls for the chassis parts."""
         chassis_data = self.connect_server(self.urls['Chassis'])
         if not chassis_data:
-            return
+            return None
 
         urls = ['PowerSubsystem', 'Power', 'ThermalSubsystem', 'Thermal']
 
@@ -444,11 +469,19 @@ class RedfishMetricsCollector:
             if response:
                 logging.info("Target %s: Redfish Session deleted successfully.", self.target)
             else:
-                logging.warning("Target %s: Failed to delete session with server %s", self.target, self.host)
+                logging.warning(
+                    "Target %s: Failed to delete session with server %s",
+                    self.target,
+                    self.host
+                )
                 logging.warning("Target %s: Token: %s", self.target, self._auth_token)
 
         else:
-            logging.debug("Target %s: No Redfish session existing with server %s", self.target, self.host)
+            logging.debug(
+                "Target %s: No Redfish session existing with server %s",
+                self.target,
+                self.host
+            )
 
         if self._session:
             logging.info("Target %s: Closing requests session.", self.target)

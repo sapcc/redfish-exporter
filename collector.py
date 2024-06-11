@@ -461,10 +461,17 @@ class RedfishMetricsCollector:
 
             logging.debug("Target %s: Using URL %s", self.target, session_url)
 
-            response = requests.delete(
-                session_url, verify=False, timeout=self._timeout, headers=headers
-            )
-            response.close()
+            try:
+                response = requests.delete(
+                    session_url, verify=False, timeout=self._timeout, headers=headers
+                )
+                response.close()
+                
+            except requests.exceptions.RequestException as e:
+                logging.error(
+                    "Target %s: Error deleting session with server %s: %s",
+                    self.target, self.host, e
+                )
 
             if response:
                 logging.info("Target %s: Redfish Session deleted successfully.", self.target)

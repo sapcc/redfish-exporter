@@ -33,10 +33,11 @@ class PerformanceCollector:
     def get_power_metrics(self):
         """Get the Power data from the Redfish API."""
         logging.debug("Target %s: Get the PDU Power data.", self.col.target)
+        no_psu_metrics = True
 
         if self.col.urls['PowerSubsystem']:
 
-            no_psu_metrics = True
+            logging.debug("Target %s:Checking PowerSubsystem ...", self.col.target)
             power_subsystem = self.col.connect_server(self.col.urls['PowerSubsystem'])
             metrics = ['CapacityWatts', 'Allocation']
 
@@ -111,6 +112,7 @@ class PerformanceCollector:
 
         # fall back to deprecated URL
         if self.col.urls['Power'] and no_psu_metrics:
+            logging.debug("Target %s: Fallback to deprecated Power URL.", self.col.target)
             power_data = self.col.connect_server(self.col.urls['Power'])
             if not power_data:
                 return

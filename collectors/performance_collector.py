@@ -87,7 +87,9 @@ class PerformanceCollector:
                     continue
 
                 for field in fields:
-                    power_supply_labels.update({field: power_supply_data.get(field, 'unknown')})
+                    power_supply_labels.update(
+                        {field: power_supply_data.get(field, 'unknown')}
+                    )
 
                 power_supply_labels.update(self.col.labels)
 
@@ -120,8 +122,16 @@ class PerformanceCollector:
                 'LineInputVoltage'
             ]
             for psu in power_data['PowerSupplies']:
-                psu_name = 'unknown' if psu.get('Name', 'unknown') is None else psu.get('Name', 'unknown')
-                psu_model = 'unknown' if psu.get('Model', 'unknown') is None else psu.get('Model', 'unknown')
+                psu_name = (
+                    'unknown' 
+                    if psu.get('Name', 'unknown') is None
+                    else psu.get('Name', 'unknown')
+                )
+                psu_model = (
+                    'unknown' 
+                    if psu.get('Model', 'unknown') is None
+                    else psu.get('Model', 'unknown')
+                )
                 current_labels = {'type': 'powersupply', 'name': psu_name, 'model': psu_model}
                 current_labels.update(self.col.labels)
 
@@ -154,7 +164,8 @@ class PerformanceCollector:
         if self.col.urls['ThermalSubsystem']:
             thermal_subsystem = self.col.connect_server(self.col.urls['ThermalSubsystem'])
             thermal_metrics_url = thermal_subsystem['ThermalMetrics']['@odata.id']
-            thermal_metrics = self.col.connect_server(thermal_metrics_url)['TemperatureSummaryCelsius']
+            result = self.col.connect_server(thermal_metrics_url)
+            thermal_metrics = result.get('TemperatureSummaryCelsius', {})
 
             for metric in thermal_metrics:
                 current_labels = {'type': metric}

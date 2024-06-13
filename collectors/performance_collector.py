@@ -117,7 +117,7 @@ class PerformanceCollector:
             if not power_data:
                 return
 
-            values = [
+            metrics = [
                 'PowerOutputWatts',
                 'EfficiencyPercent',
                 'PowerInputWatts',
@@ -134,19 +134,24 @@ class PerformanceCollector:
                     if psu.get('Model', 'unknown') is None
                     else psu.get('Model', 'unknown')
                 )
-                current_labels = {'type': 'powersupply', 'name': psu_name, 'model': psu_model}
-                current_labels.update(self.col.labels)
 
-                for value in values:
-                    if value in psu:
+                for metric in metrics:
+                    if metric in psu:
                         no_psu_metrics = False
                         power_metric_value = (
                             math.nan
-                            if psu[value] is None
-                            else psu[value]
+                            if psu[metric] is None
+                            else psu[metric]
                         )
+
+                        current_labels = {
+                            'device_name': psu_name,
+                            'device_model': psu_model,
+                            'type': metric
+                        }
+                        current_labels.update(self.col.labels)
                         self.power_metrics.add_sample(
-                            f"redfish_power_{value}",
+                            "redfish_power",
                             value=power_metric_value,
                             labels=current_labels
                         )

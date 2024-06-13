@@ -1,10 +1,11 @@
-from prometheus_client.core import GaugeMetricFamily
-
+"""Collects health information from the Redfish API."""
 import logging
 import math
 
-class HealthCollector(object):
+from prometheus_client.core import GaugeMetricFamily
 
+class HealthCollector():
+    """Collects health information from the Redfish API."""
     def __enter__(self):
         return self
 
@@ -29,14 +30,15 @@ class HealthCollector(object):
         )
 
     def get_proc_health(self):
-        logging.debug(f"Target {self.col.target}: Get the CPU health data.")
+        """Get the Processor data from the Redfish API."""
+        logging.debug("Target %s: Get the CPU health data.", self.col.target)
         processor_collection = self.col.connect_server(self.col.urls["Processors"])
 
         if not processor_collection:
             return
         for processor in processor_collection["Members"]:
             processor_data = self.col.connect_server(processor["@odata.id"])
-            
+
             if not processor_data:
                 continue
 
@@ -47,7 +49,11 @@ class HealthCollector(object):
                     else self.col.status[processor_data["Status"]["Health"].lower()]
                 )
             else:
-                logging.warning(f"Target {self.col.target}: No Processor health data provided for {current_labels['device_name']}!")
+                logging.warning(
+                    "Target %s: No Processor health data provided for %s!",
+                    self.col.target,
+                    current_labels['device_name']
+                )
 
             current_labels = {
                 "device_type": "processor",
@@ -60,10 +66,15 @@ class HealthCollector(object):
             }
             current_labels.update(self.col.labels)
 
-            self.health_metrics.add_sample("redfish_health", value=proc_status, labels=current_labels)
+            self.health_metrics.add_sample(
+                "redfish_health",
+                value=proc_status,
+                labels=current_labels
+            )
 
     def get_storage_health(self):
-        logging.debug(f"Target {self.col.target}: Get the storage health data.")
+        """Get the Storage data from the Redfish API."""
+        logging.debug("Target %s: Get the storage health data.", self.col.target)
         storage_collection = self.col.connect_server(self.col.urls["Storage"])
 
         if not storage_collection:
@@ -74,7 +85,7 @@ class HealthCollector(object):
                 continue
             if controller_data.get("StorageControllers"):
                 # Cisco sometimes uses a list or a dict
-                if type(controller_data["StorageControllers"]) == list:
+                if isinstance(controller_data["StorageControllers"], list):
                     controller_details = controller_data["StorageControllers"][0]
                 else:
                     controller_details = controller_data["StorageControllers"]
@@ -104,7 +115,13 @@ class HealthCollector(object):
                     else self.col.status[controller_details["Status"]["Health"].lower()]
                 )
             else:
-                logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Controller {controller_name}: No health data found.")
+                logging.warning(
+                    "Target %s: Host %s, Model %s, Controller %s: No health data found.",
+                    self.col.target,
+                    self.col.host,
+                    self.col.model,
+                    controller_name
+                )
 
             current_labels = {
                 "device_type": "storage",
@@ -114,7 +131,11 @@ class HealthCollector(object):
             }
             current_labels.update(self.col.labels)
 
-            self.health_metrics.add_sample("redfish_health", value=controller_status, labels=current_labels)
+            self.health_metrics.add_sample(
+                "redfish_health",
+                value=controller_status,
+                labels=current_labels
+            )
 
             # Sometimes not all attributes are implemented. Checking if existing one by one.
             disk_attributes = {
@@ -152,10 +173,20 @@ class HealthCollector(object):
                         "redfish_health", value=disk_status, labels=current_labels
                     )
                 else:
-                    logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Disk {disk_data['name']}: No health data found.")
+                    logging.warning(
+                        "Target %s: Host %s, Model %s, Disk %s: No health data found.",
+                        self.col.target,
+                        self.col.host,
+                        self.col.model,
+                        disk_data['name']
+                    )
 
     def get_chassis_health(self):
-        logging.debug(f"Target {self.col.target}: Get the Chassis health data.")
+        """Get the Chassis data from the Redfish API."""
+        logging.debug(
+            "Target %s: Get the Chassis health data.",
+            self.col.target
+        )
         chassis_data = self.col.connect_server(self.col.urls["Chassis"])
         if not chassis_data:
             return
@@ -172,15 +203,19 @@ class HealthCollector(object):
         )
 
     def get_power_health(self):
-        logging.debug(f"Target {self.col.target}: Get the PDU health data.")
+        """Get the Power data from the Redfish API."""
+        logging.debug(
+            "Target %s: Get the PDU health data.",
+            self.col.target
+        )
         power_data = self.col.connect_server(self.col.urls["Power"])
         if not power_data:
             return
 
         for psu in power_data["PowerSupplies"]:
-            psu_name = psu["Name"] if "Name" in psu and psu["Name"] != None else "unknown"
+            psu_name = psu["Name"] if "Name" in psu and psu["Name"] is not None else "unknown"
             # HPE ILO5 is missing the PSU Model
-            psu_model = psu["Model"] if "Model" in psu and psu["Model"] != None else "unknown"
+            psu_model = psu["Model"] if "Model" in psu and psu["Model"] is not None else "unknown"
 
             current_labels = {
                     "device_type": "powersupply", 
@@ -189,23 +224,43 @@ class HealthCollector(object):
             }
             current_labels.update(self.col.labels)
             psu_health = math.nan
-            psu_status = dict( (k.lower(), v) for k, v in psu["Status"].items() )  # convert to lower case because there are differences per vendor
+            # convert to lower case because there are differences per vendor
+            psu_status = dict( (k.lower(), v) for k, v in psu["Status"].items() )
             if "state" in psu_status:
                 if psu_status["state"] != "absent":
                     if "health" in psu_status:
-                        psu_health = ( math.nan if psu_status["health"] is None else self.col.status[psu_status["health"].lower()] )
+                        psu_health = (
+                            math.nan
+                            if psu_status["health"]
+                            is None
+                            else self.col.status[psu_status["health"].lower()]
+                        )
                     elif "state" in psu_status:
-                        psu_health = ( math.nan if psu_status["state"]  is None else self.col.status[psu_status["state"].lower()] )
+                        psu_health = (
+                            math.nan
+                            if psu_status["state"]
+                            is None
+                            else self.col.status[psu_status["state"].lower()]
+                        )
 
             if psu_health is math.nan:
-                logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, PSU {psu_name}: No health data found.")
+                logging.warning("Target %s: Host %s, Model %s, PSU %s: No health data found.",
+                    self.col.target,
+                    self.col.host,
+                    self.col.model,
+                    psu_name
+                )
 
             self.health_metrics.add_sample(
                 "redfish_health", value=psu_health, labels=current_labels
             )
 
     def get_thermal_health(self):
-        logging.debug(f"Target {self.col.target}: Get the thermal health data.")
+        """Get the Thermal data from the Redfish API."""
+        logging.debug(
+            "Target %s: Get the thermal health data.",
+            self.col.target
+        )
         thermal_data = self.col.connect_server(self.col.urls["Thermal"])
         if not thermal_data:
             return
@@ -218,7 +273,8 @@ class HealthCollector(object):
             }
             current_labels.update(self.col.labels)
             fan_health = math.nan
-            fan_status = dict( (k.lower(), v) for k, v in fan["Status"].items() )  # convert to lower case because there are differences per vendor
+            # convert to lower case because there are differences per vendor
+            fan_status = dict( (k.lower(), v) for k, v in fan["Status"].items() )
             if "state" in fan_status:
                 if fan_status["state"] != "absent":
                     if "health" in fan_status:
@@ -236,14 +292,23 @@ class HealthCollector(object):
                         )
 
             if fan_health is math.nan:
-                logging.warning(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Fan {fan['Name']}: No health data found.")
+                logging.warning("Target %s: Host %s, Model %s, Fan %s: No health data found.",
+                    self.col.target,
+                    self.col.host,
+                    self.col.model,
+                    fan['Name']
+                )
 
             self.health_metrics.add_sample(
                 "redfish_health", value=fan_health, labels=current_labels
             )
 
     def get_memory_health(self):
-        logging.debug(f"Target {self.col.target}: Get the Memory data.")
+        """Get the Memory data from the Redfish API."""
+        logging.debug(
+            "Target %s: Get the Memory data."
+            , self.col.target
+        )
 
         memory_collection = self.col.connect_server(self.col.urls["Memory"])
         if not memory_collection:
@@ -259,22 +324,45 @@ class HealthCollector(object):
 
             # HPE DL560 Gen10 has no Dimm Status
             if "Status" in dimm_info:
-                if type(dimm_info["Status"]) == str:
+                if isinstance(dimm_info["Status"], str):
                     dimm_health = self.col.status[dimm_info["Status"].lower()]
                 else:
-                    dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )  # convert to lower case because there are differences per vendor
+                    # convert to lower case because there are differences per vendor
+                    dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )
 
-                    if "state" in dimm_status and (dimm_status['state'] == None or dimm_status["state"].lower() == "absent"):
-                        logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: absent.")
-                        continue
+                    if "state" in dimm_status:
+                        dimm_state = dimm_status["state"]
+                        if (dimm_state is None or dimm_state.lower() == "absent"):
+                            logging.debug("Target %s: Host %s, Model %s, Dimm %s: absent.",
+                                self.col.target,
+                                self.col.host,
+                                self.col.model,
+                                dimm_info['Name']
+                            )
+                            continue
 
                     if "health" in dimm_status:
-                        dimm_health = ( math.nan if dimm_info["Status"]["Health"] is None else self.col.status[dimm_info["Status"]["Health"].lower()] )
+                        dimm_health = (
+                            math.nan
+                            if dimm_info["Status"]["Health"]
+                            is None
+                            else self.col.status[dimm_info["Status"]["Health"].lower()]
+                        )
                     elif "state" in dimm_status:
-                        dimm_health = ( math.nan if dimm_info["Status"]["State"]  is None else self.col.status[dimm_info["Status"]["State"].lower()] )
+                        dimm_health = (
+                            math.nan
+                            if dimm_info["Status"]["State"]
+                            is None
+                            else self.col.status[dimm_info["Status"]["State"].lower()]
+                        )
 
             if dimm_health is math.nan:
-                logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}, Dimm {dimm_info['Name']}: No health data found.")
+                logging.debug("Target %s: Host %s, Model %s, Dimm %s: No health data found.",
+                    self.col.target,
+                    self.col.host,
+                    self.col.model,
+                    dimm_info['Name']
+                )
 
             current_labels = {
                 "device_type": "memory", 
@@ -311,9 +399,20 @@ class HealthCollector(object):
                         is None
                         else int(dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"])
                     )
-                    self.mem_metrics_correctable.add_sample("redfish_memory_correctable", value=correctable_ecc_error, labels=current_labels)
+                    self.mem_metrics_correctable.add_sample(
+                        "redfish_memory_correctable",
+                        value=correctable_ecc_error,
+                        labels=current_labels
+                    )
                 else:
-                    logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No CorrectableECCError Metrics found.")
+                    logging.debug(
+                        "Target %s: Host %s, Model %s, Dimm %s: "
+                        "No CorrectableECCError Metrics found.",
+                        self.col.target,
+                        self.col.host,
+                        self.col.model,
+                        dimm_info['Name']
+                    )
 
                 if 'UncorrectableECCError' in dimm_metrics["HealthData"]["AlarmTrips"]:
                     uncorrectable_ecc_error = (
@@ -322,59 +421,101 @@ class HealthCollector(object):
                         is None
                         else int(dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"])
                     )
-                    self.mem_metrics_unorrectable.add_sample("redfish_memory_uncorrectable", value=uncorrectable_ecc_error, labels=current_labels)
+                    self.mem_metrics_unorrectable.add_sample(
+                        "redfish_memory_uncorrectable",
+                        value=uncorrectable_ecc_error,
+                        labels=current_labels
+                    )
                 else:
-                    logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No UncorrectableECCError Metrics found.")
+                    logging.debug(
+                        "Target %s: Host %s, Model %s, Dimm %s: "
+                        "No UncorrectableECCError Metrics found.",
+                        self.col.target,
+                        self.col.host,
+                        self.col.model,
+                        dimm_info['Name']
+                    )
 
             else:
-                logging.debug(f"Target {self.col.target}: Host {self.col.host}, Model {self.col.model}: Dimm {dimm_info['Name']}: No Dimm Metrics found.")
+                logging.debug(
+                    "Target %s: Host %s, Model %s, Dimm %s: No Dimm Metrics found.",
+                    self.col.target,
+                    self.col.host,
+                    self.col.model,
+                    dimm_info['Name']
+                )
 
     def collect(self):
-
-        logging.info(f"Target {self.col.target}: Collecting data ...")
+        """Collect the health data."""
+        logging.info("Target %s: Collecting data ...", self.col.target)
 
         current_labels = {"device_type": "system", "device_name": "summary"}
         current_labels.update(self.col.labels)
         self.health_metrics.add_sample(
-            "redfish_health", value=self.col.server_health, labels=current_labels
+            "redfish_health",
+            value=self.col.server_health,
+            labels=current_labels
         )
 
         # Get the processor health data
         if self.col.urls["Processors"]:
             self.get_proc_health()
         else:
-            logging.warning(f"Target {self.col.target}: No Processors URL provided! Cannot get Processors data!")
+            logging.warning(
+                "Target %s: No Processors URL provided! Cannot get Processors data!",
+                self.col.target
+            )
 
         # Get the storage health data
         if self.col.urls["Storage"]:
             self.get_storage_health()
         else:
-            logging.warning(f"Target {self.col.target}: No Storage URL provided! Cannot get Storage data!")
+            logging.warning(
+                "Target %s: No Storage URL provided! Cannot get Storage data!",
+                self.col.target
+            )
 
         # Get the chassis health data
         if self.col.urls["Chassis"]:
             self.get_chassis_health()
         else:
-            logging.warning(f"Target {self.col.target}: No Chassis URL provided! Cannot get Chassis data!")
+            logging.warning(
+                "Target %s: No Chassis URL provided! Cannot get Chassis data!",
+                self.col.target
+            )
 
         # Get the powersupply health data
         if self.col.urls["Power"]:
             self.get_power_health()
         else:
-            logging.warning(f"Target {self.col.target}: No Power URL provided! Cannot get PSU data!")
+            logging.warning(
+                "Target %s: No Power URL provided! Cannot get PSU data!",
+                self.col.target
+            )
 
         # Get the thermal health data
         if self.col.urls["Thermal"]:
             self.get_thermal_health()
         else:
-            logging.warning(f"Target {self.col.target}: No Thermal URL provided! Cannot get thermal data!")
+            logging.warning(
+                "Target %s: No Thermal URL provided! Cannot get thermal data!",
+                self.col.target
+            )
 
         # Export the memory data
         if self.col.urls["Memory"]:
             self.get_memory_health()
         else:
-            logging.warning(f"Target {self.col.target}: No Memory URL provided! Cannot get memory data!")
+            logging.warning(
+                "Target %s: No Memory URL provided! Cannot get memory data!",
+                self.col.target
+            )
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb is not None:
-            logging.exception(f"Target {self.target}: An exception occured in {exc_tb.tb_frame.f_code.co_filename}:{exc_tb.tb_lineno}")
+            logging.exception(
+                "Target %s: An exception occured in %s:%s",
+                self.col.target,
+                exc_tb.tb_frame.f_code.co_filename,
+                exc_tb.tb_lineno
+            )

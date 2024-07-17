@@ -17,7 +17,7 @@ RUN mkdir /${FOLDERNAME}/collectors
 
 WORKDIR /${FOLDERNAME}
 
-RUN pip3 install --break-system-packages --upgrade pip
+RUN pip3 install --break-system-packages --upgrade pip --ignore-install
 COPY requirements.txt /${FOLDERNAME}
 RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 

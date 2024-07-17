@@ -455,6 +455,8 @@ class RedfishMetricsCollector:
     def __exit__(self, exc_type, exc_val, exc_tb):
         logging.debug("Target %s: Deleting Redfish session with server %s", self.target, self.host)
 
+        response = None
+
         if self._auth_token:
             session_url = f"https://{self.target}{self._session_url}"
             headers = {"x-auth-token": self._auth_token}
@@ -466,7 +468,7 @@ class RedfishMetricsCollector:
                     session_url, verify=False, timeout=self._timeout, headers=headers
                 )
                 response.close()
-                
+
             except requests.exceptions.RequestException as e:
                 logging.error(
                     "Target %s: Error deleting session with server %s: %s",

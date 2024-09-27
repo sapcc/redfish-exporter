@@ -152,15 +152,9 @@ class HealthCollector():
                     continue
 
                 current_labels = {"device_type": "disk"}
-                for disk_attribute in disk_attributes:
+                for disk_attribute, label_name in disk_attributes.items():
                     if disk_attribute in disk_data:
-                        current_labels.update(
-                            {
-                                disk_attributes[disk_attribute]: str(
-                                    disk_data[disk_attribute]
-                                )
-                            }
-                        )
+                        current_labels[label_name] = str(disk_data[disk_attribute])
 
                 current_labels.update(self.col.labels)
                 if "Health" in disk_data["Status"]:

@@ -37,6 +37,8 @@ class HealthCollector():
         if not processor_collection:
             return
         for processor in processor_collection["Members"]:
+            proc_status = math.nan
+
             processor_data = self.col.connect_server(processor["@odata.id"])
 
             if not processor_data:
@@ -80,6 +82,8 @@ class HealthCollector():
         if not storage_collection:
             return
         for controller in storage_collection["Members"]:
+            controller_status = math.nan
+
             controller_data = self.col.connect_server(controller["@odata.id"])
             if not controller_data:
                 continue
@@ -299,10 +303,7 @@ class HealthCollector():
 
     def get_memory_health(self):
         """Get the Memory data from the Redfish API."""
-        logging.debug(
-            "Target %s: Get the Memory data."
-            , self.col.target
-        )
+        logging.debug("Target %s: Get the Memory data.", self.col.target)
 
         memory_collection = self.col.connect_server(self.col.urls["Memory"])
         if not memory_collection:
@@ -310,134 +311,88 @@ class HealthCollector():
 
         for dimm_url in memory_collection["Members"]:
             dimm_info = self.col.connect_server(dimm_url["@odata.id"])
-
             if not dimm_info:
                 continue
 
-            dimm_health = math.nan
-
-            # HPE DL560 Gen10 has no Dimm Status
-            if "Status" in dimm_info:
-                if isinstance(dimm_info["Status"], str):
-                    dimm_health = self.col.status[dimm_info["Status"].lower()]
-                else:
-                    # convert to lower case because there are differences per vendor
-                    dimm_status = dict( (k.lower(), v) for k, v in dimm_info["Status"].items() )
-
-                    if "state" in dimm_status:
-                        dimm_state = dimm_status["state"]
-                        if (dimm_state is None or dimm_state.lower() == "absent"):
-                            logging.debug("Target %s: Host %s, Model %s, Dimm %s: absent.",
-                                self.col.target,
-                                self.col.host,
-                                self.col.model,
-                                dimm_info['Name']
-                            )
-                            continue
-
-                    if "health" in dimm_status:
-                        dimm_health = (
-                            math.nan
-                            if dimm_info["Status"]["Health"]
-                            is None
-                            else self.col.status[dimm_info["Status"]["Health"].lower()]
-                        )
-                    elif "state" in dimm_status:
-                        dimm_health = (
-                            math.nan
-                            if dimm_info["Status"]["State"]
-                            is None
-                            else self.col.status[dimm_info["Status"]["State"].lower()]
-                        )
-
+            dimm_health = self.extract_dimm_health(dimm_info)
             if dimm_health is math.nan:
                 logging.debug("Target %s: Host %s, Model %s, Dimm %s: No health data found.",
-                    self.col.target,
-                    self.col.host,
-                    self.col.model,
-                    dimm_info['Name']
-                )
+                            self.col.target, self.col.host, self.col.model, dimm_info['Name'])
+                continue
 
-            current_labels = {
-                "device_type": "memory", 
-                "device_name": dimm_info["Name"],
-                "dimm_capacity": str(dimm_info["CapacityMiB"]),
-                "dimm_speed": str(dimm_info["OperatingSpeedMhz"]),
-                "dimm_type": dimm_info["MemoryDeviceType"],
-            }
-
-            if "Manufacturer" in dimm_info:
-                manufacturer = dimm_info.get("Manufacturer", "N/A")
-
-            if "Oem" in dimm_info:
-                if "Hpe" in dimm_info["Oem"]:
-                    manufacturer = dimm_info["Oem"]["Hpe"].get("VendorName", "unknown")
-
-            current_labels.update({"device_manufacturer": manufacturer,})
-            current_labels.update(self.col.labels)
-
+            current_labels = self.get_dimm_labels(dimm_info)
             self.health_metrics.add_sample(
-                "redfish_health", value=dimm_health, labels=current_labels
+                "redfish_health",
+                value=dimm_health,
+                labels=current_labels
             )
 
             if "Metrics" in dimm_info:
-                dimm_metrics = self.col.connect_server(dimm_info["Metrics"]["@odata.id"])
-                if not dimm_metrics:
-                    continue
+                self.process_dimm_metrics(dimm_info, current_labels)
 
-                # Lenovo XCC SR650 v3 is missing the entries. Need to catch this.
-                if 'CorrectableECCError' in dimm_metrics["HealthData"]["AlarmTrips"]:
-                    correctable_ecc_error = (
-                        math.nan
-                        if dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"]
-                        is None
-                        else int(dimm_metrics["HealthData"]["AlarmTrips"]["CorrectableECCError"])
-                    )
-                    self.mem_metrics_correctable.add_sample(
-                        "redfish_memory_correctable",
-                        value=correctable_ecc_error,
-                        labels=current_labels
-                    )
-                else:
-                    logging.debug(
-                        "Target %s: Host %s, Model %s, Dimm %s: "
-                        "No CorrectableECCError Metrics found.",
-                        self.col.target,
-                        self.col.host,
-                        self.col.model,
-                        dimm_info['Name']
-                    )
+    def extract_dimm_health(self, dimm_info):
+        """Extract DIMM health from dimm_info."""
+        if "Status" not in dimm_info:
+            return math.nan
 
-                if 'UncorrectableECCError' in dimm_metrics["HealthData"]["AlarmTrips"]:
-                    uncorrectable_ecc_error = (
-                        math.nan
-                        if dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"]
-                        is None
-                        else int(dimm_metrics["HealthData"]["AlarmTrips"]["UncorrectableECCError"])
-                    )
-                    self.mem_metrics_unorrectable.add_sample(
-                        "redfish_memory_uncorrectable",
-                        value=uncorrectable_ecc_error,
-                        labels=current_labels
-                    )
-                else:
-                    logging.debug(
-                        "Target %s: Host %s, Model %s, Dimm %s: "
-                        "No UncorrectableECCError Metrics found.",
-                        self.col.target,
-                        self.col.host,
-                        self.col.model,
-                        dimm_info['Name']
-                    )
+        if isinstance(dimm_info["Status"], str):
+            return self.col.status[dimm_info["Status"].lower()]
 
-            else:
-                logging.debug(
-                    "Target %s: Host %s, Model %s, Dimm %s: No Dimm Metrics found.",
-                    self.col.target,
-                    self.col.host,
-                    self.col.model,
-                    dimm_info['Name']
-                )
+        dimm_status = {k.lower(): v for k, v in dimm_info["Status"].items()}
+        if dimm_status.get("state") in [None, "absent"]:
+            logging.debug("Target %s: Host %s, Model %s, Dimm %s: absent.",
+                        self.col.target, self.col.host, self.col.model, dimm_info['Name'])
+            return math.nan
+
+        return self.col.status.get(dimm_status.get("health", "").lower(), math.nan)
+
+    def get_dimm_labels(self, dimm_info):
+        """Generate labels for DIMM."""
+        labels = {
+            "device_type": "memory",
+            "device_name": dimm_info["Name"],
+            "dimm_capacity": str(dimm_info["CapacityMiB"]),
+            "dimm_speed": str(dimm_info["OperatingSpeedMhz"]),
+            "dimm_type": dimm_info["MemoryDeviceType"],
+            "device_manufacturer": dimm_info.get("Manufacturer", "N/A")
+        }
+
+        if "Oem" in dimm_info and "Hpe" in dimm_info["Oem"]:
+            labels["device_manufacturer"] = dimm_info["Oem"]["Hpe"].get("VendorName", "unknown")
+
+        labels.update(self.col.labels)
+        return labels
+
+    def process_dimm_metrics(self, dimm_info, current_labels):
+        """Process DIMM metrics."""
+        dimm_metrics = self.col.connect_server(dimm_info["Metrics"]["@odata.id"])
+        if not dimm_metrics:
+            return
+
+        health_data = dimm_metrics.get("HealthData", {}).get("AlarmTrips", {})
+        self.add_metric_sample(
+            "redfish_memory_correctable",
+            health_data,
+            "CorrectableECCError",
+            current_labels
+        )
+
+        self.add_metric_sample(
+            "redfish_memory_uncorrectable",
+            health_data,
+            "UncorrectableECCError",
+            current_labels
+        )
+
+    def add_metric_sample(self, metric_name, data, key, labels):
+        """Add a sample to the specified metric."""
+        value = math.nan if data.get(key) is None else int(data[key])
+        if value is math.nan:
+            logging.debug("Target %s: Host %s, Model %s, Dimm %s: No %s Metrics found.",
+                        self.col.target, self.col.host, self.col.model, labels["device_name"], key)
+        else:
+            metric_family = getattr(self, f"mem_metrics_{metric_name.split('_')[-1]}")
+            metric_family.add_sample(metric_name, value=value, labels=labels)
 
     def collect(self):
         """Collect the health data."""

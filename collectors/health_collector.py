@@ -28,7 +28,7 @@ class HealthCollector():
             labels=self.col.labels,
         )
 
-    def get_proc_health(self):
+    def get_processors_health(self):
         """Get the Processor data from the Redfish API."""
         logging.debug("Target %s: Get the CPU health data.", self.col.target)
         processor_collection = self.col.connect_server(self.col.urls["Processors"])
@@ -128,7 +128,7 @@ class HealthCollector():
             return self.col.status[status.lower()]
 
         status = {k.lower(): v for k, v in status.items()}
-        if status.get("state") in [None, "absent"]:
+        if status.get("state").lower() in [None, "absent"]:
             logging.debug(
                 "Target %s: Host %s, Model %s, %s %s: absent.",
                 self.col.target,

@@ -128,7 +128,8 @@ class HealthCollector():
             return self.col.status[status.lower()]
 
         status = {k.lower(): v for k, v in status.items()}
-        if status.get("state").lower() in [None, "absent"]:
+        state = status.get("state")
+        if state is None or state.lower() == "absent":
             logging.debug(
                 "Target %s: Host %s, Model %s, %s %s: absent.",
                 self.col.target,

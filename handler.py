@@ -124,4 +124,4 @@ class MetricsHandler:
             except Exception as err:
                 message = f"Exception: {traceback.format_exc()}"
                 logging.error("Target %s: %s", target, message)
-                raise falcon.HTTPBadRequest(message)
+                raise falcon.HTTPBadRequest(description=message)

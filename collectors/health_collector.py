@@ -36,26 +36,13 @@ class HealthCollector():
         if not processor_collection:
             return
         for processor in processor_collection["Members"]:
-            proc_status = math.nan
-
             processor_data = self.col.connect_server(processor["@odata.id"])
-
             if not processor_data:
                 continue
 
-            if "Health" in processor_data["Status"]:
-                proc_status = (
-                    math.nan
-                    if processor_data["Status"]["Health"] is None
-                    else self.col.status[processor_data["Status"]["Health"].lower()]
-                )
-            else:
-                logging.warning(
-                    "Target %s: No Processor health data provided for %s!",
-                    self.col.target,
-                    processor_data.get("Socket", "unknown")
-                )
-
+            proc_status = self.extract_health_status(
+                processor_data, "Processor", processor_data.get("Socket", "unknown")
+            )
             current_labels = {
                 "device_type": "processor",
                 "device_name": processor_data.get("Socket", "unknown"),
@@ -89,7 +76,9 @@ class HealthCollector():
 
             controller_details = self.get_controller_details(controller_data)
             controller_name = self.get_controller_name(controller_details, controller_data)
-            controller_status = self.extract_health_status(controller_details, "Controller")
+            controller_status = self.extract_health_status(
+                controller_details, "Controller", controller_name
+            )
 
             current_labels = self.get_controller_labels(controller_details, controller_name)
             self.add_metric_sample(
@@ -104,7 +93,11 @@ class HealthCollector():
                 if not disk_data:
                     continue
 
-                disk_status = self.extract_health_status(disk_data, "Disk")
+                disk_status = self.extract_health_status(
+                    disk_data,
+                    "Disk",
+                    disk_data.get("Name", "unknown")
+                )
                 current_labels = self.get_disk_labels(disk_data)
                 self.add_metric_sample(
                     "redfish_health",
@@ -125,14 +118,37 @@ class HealthCollector():
         """Get controller name from controller details or data."""
         return controller_details.get("Name") or controller_data.get("Name", "unknown")
 
-    def extract_health_status(self, data, device_type):
+    def extract_health_status(self, data, device_type, device_name):
         """Extract health status from data."""
-        status = data.get("Status", {})
-        health = status.get("HealthRollup") or status.get("Health")
-        if health is None:
-            logging.warning("Target %s: No %s health data provided for %s!",
-                            self.col.target, device_type, data.get("Name", "unknown"))
+        if "Status" not in data:
             return math.nan
+
+        status = data["Status"]
+        if isinstance(status, str):
+            return self.col.status[status.lower()]
+
+        status = {k.lower(): v for k, v in status.items()}
+        if status.get("state") in [None, "absent"]:
+            logging.debug(
+                "Target %s: Host %s, Model %s, %s %s: absent.",
+                self.col.target,
+                self.col.host,
+                self.col.model,
+                device_type,
+                device_name
+            )
+            return math.nan
+
+        health = status.get("health", "")
+        if not health:
+            logging.warning(
+                "Target %s: No %s health data provided for %s!",
+                self.col.target,
+                device_type,
+                device_name
+            )
+            return math.nan
+
         return self.col.status[health.lower()]
 
     def get_controller_labels(self, controller_details, controller_name):
@@ -158,7 +174,7 @@ class HealthCollector():
         }
         labels = {"device_type": "disk"}
         for disk_attribute, label_name in disk_attributes.items():
-            if (disk_attribute in disk_data) and (disk_data[disk_attribute] is not None):
+            if disk_attribute in disk_data:
                 labels[label_name] = str(disk_data[disk_attribute])
         labels.update(self.col.labels)
         return labels
@@ -175,7 +191,7 @@ class HealthCollector():
             "device_name": chassis_data["Name"]
         }
         current_labels.update(self.col.labels)
-        chassis_health = self.col.status[chassis_data["Status"]["Health"].lower()]
+        chassis_health = self.extract_health_status(chassis_data, "Chassis", chassis_data["Name"])
         self.add_metric_sample(
             "redfish_health",
             {"Health": chassis_health},
@@ -200,11 +216,7 @@ class HealthCollector():
                 "device_model": psu_model
             }
             current_labels.update(self.col.labels)
-            psu_health = math.nan
-            psu_status = {k.lower(): v for k, v in psu["Status"].items()}
-            if psu_status.get("state") != "absent":
-                psu_health = self.extract_health_status(psu_status, "PSU")
-
+            psu_health = self.extract_health_status(psu, "PSU", psu_name)
             self.add_metric_sample(
                 "redfish_health",
                 {"Health": psu_health},
@@ -226,11 +238,7 @@ class HealthCollector():
                 "device_name": fan_name
             }
             current_labels.update(self.col.labels)
-            fan_health = math.nan
-            fan_status = {k.lower(): v for k, v in fan["Status"].items()}
-            if fan_status.get("state") != "absent":
-                fan_health = self.extract_health_status(fan_status, "Fan")
-
+            fan_health = self.extract_health_status(fan, "Fan", fan_name)
             self.add_metric_sample(
                 "redfish_health",
                 {"Health": fan_health},
@@ -251,10 +259,19 @@ class HealthCollector():
             if not dimm_info:
                 continue
 
-            dimm_health = self.extract_dimm_health(dimm_info)
+            dimm_health = self.extract_health_status(
+                dimm_info,
+                "Dimm",
+                dimm_info.get("Name", "unknown")
+            )
             if dimm_health is math.nan:
-                logging.debug("Target %s: Host %s, Model %s, Dimm %s: No health data found.",
-                              self.col.target, self.col.host, self.col.model, dimm_info['Name'])
+                logging.debug(
+                    "Target %s: Host %s, Model %s, Dimm %s: No health data found.",
+                    self.col.target,
+                    self.col.host,
+                    self.col.model,
+                    dimm_info['Name']
+                )
                 continue
 
             current_labels = self.get_dimm_labels(dimm_info)
@@ -267,22 +284,6 @@ class HealthCollector():
 
             if "Metrics" in dimm_info:
                 self.process_dimm_metrics(dimm_info, current_labels)
-
-    def extract_dimm_health(self, dimm_info):
-        """Extract DIMM health from dimm_info."""
-        if "Status" not in dimm_info:
-            return math.nan
-
-        if isinstance(dimm_info["Status"], str):
-            return self.col.status[dimm_info["Status"].lower()]
-
-        dimm_status = {k.lower(): v for k, v in dimm_info["Status"].items()}
-        if dimm_status.get("state") in [None, "absent"]:
-            logging.debug("Target %s: Host %s, Model %s, Dimm %s: absent.",
-                          self.col.target, self.col.host, self.col.model, dimm_info['Name'])
-            return math.nan
-
-        return self.col.status.get(dimm_status.get("health", "").lower(), math.nan)
 
     def get_dimm_labels(self, dimm_info):
         """Generate labels for DIMM."""
@@ -345,6 +346,16 @@ class HealthCollector():
                 metric_family = getattr(self, f"mem_metrics_{metric_name.split('_')[-1]}")
             metric_family.add_sample(metric_name, value=value, labels=labels)
 
+    def collect_health_data(self, url_key):
+        """Helper method to collect health data."""
+        health_function_name = f"get_{url_key.lower()}_health"
+        health_function = getattr(self, health_function_name, None)
+        if health_function and self.col.urls[url_key]:
+            health_function()
+        else:
+            warning_message = f"No {url_key} URL provided! Cannot get {url_key} data!"
+            logging.warning("Target %s: %s", self.col.target, warning_message)
+
     def collect(self):
         """Collect the health data."""
         logging.info("Target %s: Collecting data ...", self.col.target)
@@ -358,48 +369,8 @@ class HealthCollector():
             current_labels
         )
 
-        self.collect_health_data(
-            "Processors",
-            self.get_proc_health,
-            "No Processors URL provided! Cannot get Processors data!"
-        )
-
-        self.collect_health_data(
-            "Storage",
-            self.get_storage_health,
-            "No Storage URL provided! Cannot get Storage data!"
-        )
-
-        self.collect_health_data(
-            "Chassis",
-            self.get_chassis_health,
-            "No Chassis URL provided! Cannot get Chassis data!"
-        )
-
-        self.collect_health_data(
-            "Power",
-            self.get_power_health,
-            "No Power URL provided! Cannot get PSU data!"
-        )
-
-        self.collect_health_data(
-            "Thermal",
-            self.get_thermal_health,
-            "No Thermal URL provided! Cannot get thermal data!"
-        )
-
-        self.collect_health_data(
-            "Memory",
-            self.get_memory_health,
-            "No Memory URL provided! Cannot get memory data!"
-        )
-
-    def collect_health_data(self, url_key, health_function, warning_message):
-        """Helper method to collect health data."""
-        if self.col.urls[url_key]:
-            health_function()
-        else:
-            logging.warning("Target %s: %s", self.col.target, warning_message)
+        for url_key in ["Processors", "Storage", "Chassis", "Power", "Thermal", "Memory"]:
+            self.collect_health_data(url_key)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb is not None:

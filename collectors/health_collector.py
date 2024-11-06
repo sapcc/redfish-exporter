@@ -291,7 +291,7 @@ class HealthCollector():
             "device_type": "memory",
             "device_name": dimm_info["Name"],
             "dimm_capacity": str(dimm_info["CapacityMiB"]),
-            "dimm_speed": str(dimm_info["OperatingSpeedMhz"]),
+            "dimm_speed": str(dimm_info.get("OperatingSpeedMhz", "unknown")),
             "dimm_type": dimm_info["MemoryDeviceType"],
             "device_manufacturer": dimm_info.get("Manufacturer", "N/A")
         }
@@ -332,7 +332,7 @@ class HealthCollector():
 
         if math.isnan(value):
             logging.debug(
-                "Target %s: Host %s, Model %s, Dimm %s: No %s Metrics found.",
+                "Target %s: Host %s, Model %s, Name %s: No %s Metrics found.",
                 self.col.target,
                 self.col.host,
                 self.col.model,

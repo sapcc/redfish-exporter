@@ -55,14 +55,12 @@ class MetricsHandler:
             logging.error("No target parameter provided!")
             raise falcon.HTTPMissingParam("target")
 
-        logging.debug("Received Target: %s", target)
-
         job = req.get_param("job")
         if not job:
             logging.error("Target %s: No job provided!", target)
             raise falcon.HTTPMissingParam("job")
 
-        logging.debug("Received Job: %s", job)
+        logging.debug("Received Target %s with Job %s", target, job)
 
         ip_re = re.compile(
             r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}"

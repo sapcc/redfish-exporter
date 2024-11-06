@@ -158,7 +158,7 @@ class HealthCollector():
         }
         labels = {"device_type": "disk"}
         for disk_attribute, label_name in disk_attributes.items():
-            if disk_attribute in disk_data:
+            if (disk_attribute in disk_data) and (disk_data[disk_attribute] is not None):
                 labels[label_name] = str(disk_data[disk_attribute])
         labels.update(self.col.labels)
         return labels

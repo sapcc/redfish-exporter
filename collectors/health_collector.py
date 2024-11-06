@@ -358,59 +358,48 @@ class HealthCollector():
             current_labels
         )
 
-        # Get the processor health data
-        if self.col.urls["Processors"]:
-            self.get_proc_health()
-        else:
-            logging.warning(
-                "Target %s: No Processors URL provided! Cannot get Processors data!",
-                self.col.target
-            )
+        self.collect_health_data(
+            "Processors",
+            self.get_proc_health,
+            "No Processors URL provided! Cannot get Processors data!"
+        )
 
-        # Get the storage health data
-        if self.col.urls["Storage"]:
-            self.get_storage_health()
-        else:
-            logging.warning(
-                "Target %s: No Storage URL provided! Cannot get Storage data!",
-                self.col.target
-            )
+        self.collect_health_data(
+            "Storage",
+            self.get_storage_health,
+            "No Storage URL provided! Cannot get Storage data!"
+        )
 
-        # Get the chassis health data
-        if self.col.urls["Chassis"]:
-            self.get_chassis_health()
-        else:
-            logging.warning(
-                "Target %s: No Chassis URL provided! Cannot get Chassis data!",
-                self.col.target
-            )
+        self.collect_health_data(
+            "Chassis",
+            self.get_chassis_health,
+            "No Chassis URL provided! Cannot get Chassis data!"
+        )
 
-        # Get the powersupply health data
-        if self.col.urls["Power"]:
-            self.get_power_health()
-        else:
-            logging.warning(
-                "Target %s: No Power URL provided! Cannot get PSU data!",
-                self.col.target
-            )
+        self.collect_health_data(
+            "Power",
+            self.get_power_health,
+            "No Power URL provided! Cannot get PSU data!"
+        )
 
-        # Get the thermal health data
-        if self.col.urls["Thermal"]:
-            self.get_thermal_health()
-        else:
-            logging.warning(
-                "Target %s: No Thermal URL provided! Cannot get thermal data!",
-                self.col.target
-            )
+        self.collect_health_data(
+            "Thermal",
+            self.get_thermal_health,
+            "No Thermal URL provided! Cannot get thermal data!"
+        )
 
-        # Export the memory data
-        if self.col.urls["Memory"]:
-            self.get_memory_health()
+        self.collect_health_data(
+            "Memory",
+            self.get_memory_health,
+            "No Memory URL provided! Cannot get memory data!"
+        )
+
+    def collect_health_data(self, url_key, health_function, warning_message):
+        """Helper method to collect health data."""
+        if self.col.urls[url_key]:
+            health_function()
         else:
-            logging.warning(
-                "Target %s: No Memory URL provided! Cannot get memory data!",
-                self.col.target
-            )
+            logging.warning("Target %s: %s", self.col.target, warning_message)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb is not None:

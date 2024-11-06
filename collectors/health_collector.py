@@ -22,7 +22,7 @@ class HealthCollector():
             "Redfish Server Monitoring Memory Data for correctable errors",
             labels=self.col.labels,
         )
-        self.mem_metrics_unorrectable = GaugeMetricFamily(
+        self.mem_metrics_uncorrectable = GaugeMetricFamily(
             "redfish_memory_uncorrectable",
             "Redfish Server Monitoring Memory Data for uncorrectable errors",
             labels=self.col.labels,

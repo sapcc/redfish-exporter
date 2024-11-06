@@ -414,7 +414,7 @@ class RedfishMetricsCollector:
             metrics.collect()
 
             yield metrics.mem_metrics_correctable
-            yield metrics.mem_metrics_unorrectable
+            yield metrics.mem_metrics_uncorrectable
             yield metrics.health_metrics
 
         # Get the firmware information

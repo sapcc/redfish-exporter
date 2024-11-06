@@ -28,7 +28,7 @@ class WelcomePage:
 
         resp.status = falcon.HTTP_200
         resp.content_type = 'text/html'
-        resp.body = """
+        resp.text = """
         <h1>Redfish Exporter</h1>
         <h2>Prometheus Exporter for redfish API based servers monitoring</h2>
         <ul>
@@ -120,10 +120,10 @@ class MetricsHandler:
 
             try:
                 # collect the actual metrics
-                resp.body = generate_latest(registry)
+                resp.text = generate_latest(registry)
                 resp.status = falcon.HTTP_200
 
             except Exception as err:
                 message = f"Exception: {traceback.format_exc()}"
                 logging.error("Target %s: %s", target, message)
-                raise falcon.HTTPBadRequest("Bad Request", message)
+                raise falcon.HTTPBadRequest(message)

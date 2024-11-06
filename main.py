@@ -32,7 +32,7 @@ def falcon_app(config):
     """
     port = int(os.getenv("LISTEN_PORT", config.get("listen_port", 9200)))
     addr = "0.0.0.0"
-    logging.info("Starting Redfish Prometheus Server on Port %s", port)
+    logging.info("Starting Redfish Prometheus Server ...")
 
     api = falcon.API()
     api.add_route("/health",  MetricsHandler(config, metrics_type='health'))
@@ -42,6 +42,7 @@ def falcon_app(config):
 
     with make_server(addr, port, api, ThreadingWSGIServer, handler_class=_SilentHandler) as httpd:
         httpd.daemon = True # pylint: disable=attribute-defined-outside-init
+        logging.info("Listening on Port %s", port)
         try:
             httpd.serve_forever()
         except (KeyboardInterrupt, SystemExit):
@@ -122,4 +123,4 @@ if __name__ == "__main__":
             print(f"Config File not found: {err}")
             sys.exit(1)
 
-    falcon_app(configuration)
+        falcon_app(configuration)

@@ -37,6 +37,7 @@ class PerformanceCollector:
 
         if self.col.urls['PowerSubsystem']:
 
+            power_supplies_url = None
             logging.debug("Target %s:Checking PowerSubsystem ...", self.col.target)
             power_subsystem = self.col.connect_server(self.col.urls['PowerSubsystem'])
             metrics = ['CapacityWatts', 'Allocation']
@@ -53,7 +54,9 @@ class PerformanceCollector:
                                 else power_subsystem[metric][submetric]
                             )
                             self.power_metrics.add_sample(
-                                "redfish_power", value=power_metric_value, labels=current_labels
+                                "redfish_power",
+                                value=power_metric_value,
+                                labels=current_labels
                             )
                     else:
                         current_labels = {'type': metric}
@@ -64,59 +67,71 @@ class PerformanceCollector:
                             else power_subsystem[metric]
                         )
                         self.power_metrics.add_sample(
-                            "redfish_power", value=power_metric_value, labels=current_labels
+                            "redfish_power",
+                            value=power_metric_value,
+                            labels=current_labels
                         )
+
             if power_subsystem['PowerSupplies']:
                 power_supplies_url = power_subsystem['PowerSupplies'].get('@odata.id')
 
-            if power_supplies_url:
-                power_supplies = self.col.connect_server(power_supplies_url)['Members']
+            if not power_supplies_url:
+                logging.warning(
+                    "Target %s, Host %s, Model %s: No power supplies url found.",
+                    self.col.target,
+                    self.col.host,
+                    self.col.model
+                )
+                return
 
-                fields = ['Name', 'Model', 'SerialNumber', 'Id']
-                metrics = [
-                    'InputVoltage', 
-                    'InputCurrentAmps', 
-                    'InputPowerWatts', 
-                    'OutputPowerWatts'
-                ]
+            power_supplies = self.col.connect_server(power_supplies_url)['Members']
 
-                for power_supply in power_supplies:
-                    power_supply_labels = {}
-                    power_supply_data = self.col.connect_server(power_supply['@odata.id'])
+            fields = ['Name', 'Model', 'SerialNumber', 'Id']
+            metrics = [
+                'InputVoltage', 
+                'InputCurrentAmps', 
+                'InputPowerWatts', 
+                'OutputPowerWatts'
+            ]
 
-                    if 'Metrics' not in power_supply_data:
-                        logging.warning(
-                            "Target %s, Host %s, Model %s: "
-                            "No power supply metrics url found for %s.",
-                            self.col.target,
-                            self.col.host,
-                            self.col.model,
-                            power_supply_data.get('Name', 'unknown')
+            for power_supply in power_supplies:
+                power_supply_labels = {}
+                power_supply_data = self.col.connect_server(power_supply['@odata.id'])
+
+                if 'Metrics' not in power_supply_data:
+                    logging.warning(
+                        "Target %s, Host %s, Model %s: "
+                        "No power supply metrics url found for %s.",
+                        self.col.target,
+                        self.col.host,
+                        self.col.model,
+                        power_supply_data.get('Name', 'unknown')
+                    )
+                    continue
+
+                for field in fields:
+                    power_supply_labels.update(
+                        {field: power_supply_data.get(field, 'unknown')}
+                    )
+
+                power_supply_labels.update(self.col.labels)
+
+                power_supply_metrics_url = power_supply_data['Metrics']['@odata.id']
+                power_supply_metrics = self.col.connect_server(power_supply_metrics_url)
+                no_psu_metrics = False
+
+                for metric in metrics:
+                    current_labels = {'type': metric}
+                    current_labels.update(power_supply_labels)
+                    if metric in power_supply_metrics:
+                        power_metric_value = (
+                            math.nan
+                            if power_supply_metrics[metric]['Reading'] is None
+                            else power_supply_metrics[metric]['Reading']
                         )
-                        continue
-
-                    for field in fields:
-                        power_supply_labels.update(
-                            {field: power_supply_data.get(field, 'unknown')}
+                        self.power_metrics.add_sample(
+                            "redfish_power", value=power_metric_value, labels=current_labels
                         )
-
-                    power_supply_labels.update(self.col.labels)
-
-                    power_supply_metrics_url = power_supply_data['Metrics']['@odata.id']
-                    power_supply_metrics = self.col.connect_server(power_supply_metrics_url)
-                    no_psu_metrics = False
-                    for metric in metrics:
-                        current_labels = {'type': metric}
-                        current_labels.update(power_supply_labels)
-                        if metric in power_supply_metrics:
-                            power_metric_value = (
-                                math.nan
-                                if power_supply_metrics[metric]['Reading'] is None
-                                else power_supply_metrics[metric]['Reading']
-                            )
-                            self.power_metrics.add_sample(
-                                "redfish_power", value=power_metric_value, labels=current_labels
-                            )
 
         # fall back to deprecated URL
         if self.col.urls['Power'] and no_psu_metrics:
@@ -196,7 +211,7 @@ class PerformanceCollector:
 
     def collect(self):
         """Collects performance information from the Redfish API."""
-        logging.info("Target %s: Collecting data ...",self.col.target)
+        logging.info("Target %s: Collecting performance data ...",self.col.target)
         self.get_power_metrics()
         self.get_temp_metrics()
 

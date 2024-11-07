@@ -359,7 +359,7 @@ class HealthCollector():
 
     def collect(self):
         """Collect the health data."""
-        logging.info("Target %s: Collecting data ...", self.col.target)
+        logging.info("Target %s: Collecting health data ...", self.col.target)
 
         current_labels = {"device_type": "system", "device_name": "summary"}
         current_labels.update(self.col.labels)

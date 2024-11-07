@@ -1,12 +1,13 @@
-from prometheus_client.core import GaugeMetricFamily
+"""Collects certificate information from the Redfish API."""
 
 import logging
 import ssl
-import OpenSSL
-import socket
 import datetime
+import OpenSSL
+from prometheus_client.core import GaugeMetricFamily
 
 class CertificateCollector(object):
+    """Collects certificate information from the Redfish API."""
 
     def __init__(self, host, target, labels):
         self.host = host
@@ -18,27 +19,27 @@ class CertificateCollector(object):
         self.cert_metrics_isvalid = GaugeMetricFamily(
             "redfish_certificate_isvalid",
             "Redfish Server Monitoring certificate is valid",
-            labels = self.labels,
+            labels=self.labels,
         )
         self.cert_metrics_valid_hostname = GaugeMetricFamily(
             "redfish_certificate_valid_hostname",
             "Redfish Server Monitoring certificate has valid hostname",
-            labels = self.labels,
+            labels=self.labels,
         )
         self.cert_metrics_valid_days = GaugeMetricFamily(
             "redfish_certificate_valid_days",
             "Redfish Server Monitoring certificate valid for days",
-            labels = self.labels,
+            labels=self.labels,
         )
         self.cert_metrics_selfsigned = GaugeMetricFamily(
             "redfish_certificate_selfsigned",
             "Redfish Server Monitoring certificate is self-signed",
-            labels = self.labels,
+            labels=self.labels,
         )
 
     def collect(self):
-
-        logging.info(f"Target {self.target}: Collecting data ...")
+        '''Collect Certificate data'''
+        logging.info("Target %s: Collecting certificate data ...", self.target)
 
         cert = None
         x509 = None
@@ -57,16 +58,27 @@ class CertificateCollector(object):
             x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
 
         except OpenSSL.SSL.Error as e:
-
-            logging.debug(f"Target {self.target}: Certificate Validation Error!")
-            logging.debug(f"Target {self.target}: {e}")
+            logging.debug("Target %s: Certificate Validation Error!", self.target)
+            logging.debug("Target %s: %s", self.target, e)
 
         if cert and x509:
-            subject = [value.decode('utf-8') for name, value in x509.get_subject().get_components() if name.decode('utf-8') == 'CN'][0]
-            issuer = [value.decode('utf-8') for name, value in x509.get_issuer().get_components() if name.decode('utf-8') == 'CN'][0]
+            subject = [
+                value.decode('utf-8') for name, value in x509.get_subject().get_components()
+                if name.decode('utf-8') == 'CN'
+            ][0]
+            issuer = [
+                value.decode('utf-8') for name, value in x509.get_issuer().get_components()
+                if name.decode('utf-8') == 'CN'
+            ][0]
 
-            cert_expiry_date = datetime.datetime.strptime(x509.get_notAfter().decode('utf-8'), '%Y%m%d%H%M%S%fZ') if x509.get_notAfter().decode('utf-8') else datetime.datetime.now()
+            not_after_str = x509.get_notAfter().decode('utf-8')
+
+            cert_expiry_date = datetime.datetime.strptime(
+                not_after_str, '%Y%m%d%H%M%S%fZ'
+            ) if not_after_str else datetime.datetime.now()
+
             cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
+
             current_labels.update(
                 {
                     "issuer": issuer,
@@ -76,23 +88,38 @@ class CertificateCollector(object):
             )
 
             if issuer == subject:
-                logging.warning(f"Target {self.target}: Certificate is self-signed. Issuer: {issuer}, Subject: {subject}")
+                logging.warning(
+                    "Target %s: Certificate is self-signed. Issuer: %s, Subject: %s",
+                    self.target, issuer, subject
+                )
                 cert_selfsigned = 1
             else:
-                logging.info(f"Target {self.target}: Certificate not self-signed. Issuer: {issuer}, Subject: {subject}")
+                logging.info(
+                    "Target %s: Certificate not self-signed. Issuer: %s, Subject: %s",
+                    self.target, issuer, subject
+                )
 
             if subject == self.host:
-                logging.info(f"Target {self.target}: Certificate has right hostname.")
+                logging.info("Target %s: Certificate has right hostname.", self.target)
                 cert_has_right_hostname = 1
             else:
-                logging.warning(f"Target {self.target}: Certificate has wrong hostname. Hostname: {self.host}, Subject: {subject}")
+                logging.warning(
+                    "Target %s: Certificate has wrong hostname. Hostname: %s, Subject: %s",
+                    self.target, self.host, subject
+                )
 
             if cert_days_left > 0:
-                logging.info(f"Target {self.target}: Certificate still valid. Days left: {cert_days_left}")
+                logging.info(
+                    "Target %s: Certificate still valid. Days left: %d",
+                    self.target, cert_days_left
+                )
                 if cert_has_right_hostname:
                     cert_valid = 1
             else:
-                logging.warning(f"Target {self.target}: Certificate not valid. Days left: {cert_days_left}")
+                logging.warning(
+                    "Target %s: Certificate not valid. Days left: %d",
+                    self.target, cert_days_left
+                )
 
         current_labels.update(self.labels)
 
@@ -119,4 +146,3 @@ class CertificateCollector(object):
             value = cert_selfsigned,
             labels = current_labels,
         )
-     

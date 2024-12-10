@@ -292,7 +292,13 @@ class RedfishMetricsCollector:
 
         power_states = {"off": 0, "on": 1}
         # Get the server info for the labels
-        server_info = self.connect_server(systems['Members'][0]['@odata.id'])
+        server_info = {}
+        for member in systems['Members']:
+            self._systems_url = member['@odata.id']
+            info = self.connect_server(self._systems_url)
+            if info:
+                server_info.update(info)
+
         if not server_info:
             return
         self.manufacturer = server_info['Manufacturer']

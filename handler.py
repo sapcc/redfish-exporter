@@ -1,22 +1,34 @@
-import falcon
+"""
+This module contains the handler classes for the Falcon web server.
+"""
+
 import logging
 import socket
 import re
 import os
-import json
-import sys
+import traceback
+import falcon
 
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
 from prometheus_client.exposition import generate_latest
 
 from collector import RedfishMetricsCollector
 
+# pylint: disable=no-member
 
-class welcomePage:
-    def on_get(self, req, resp):
+class WelcomePage:
+    """
+    Create the Welcome page for the API.
+    """
+
+    def on_get(self, resp):
+        """
+        Define the GET method for the API.
+        """
+
         resp.status = falcon.HTTP_200
         resp.content_type = 'text/html'
-        resp.body = """
+        resp.text = """
         <h1>Redfish Exporter</h1>
         <h2>Prometheus Exporter for redfish API based servers monitoring</h2>
         <ul>
@@ -25,77 +37,79 @@ class welcomePage:
         </ul>
         """
 
+class MetricsHandler:
+    """
+    Metrics Handler for the Falcon API.
+    """
 
-class metricsHandler:
     def __init__(self, config, metrics_type):
         self._config = config
         self.metrics_type = metrics_type
 
     def on_get(self, req, resp):
-        self.target = req.get_param("target")
-        if not self.target:
-            msg = "No target parameter provided!"
-            logging.error(msg)
+        """
+        Define the GET method for the API.
+        """
+        target = req.get_param("target")
+        if not target:
+            logging.error("No target parameter provided!")
             raise falcon.HTTPMissingParam("target")
 
-        logging.debug(f"Received Target: {self.target}")
+        job = req.get_param("job")
+        if not job:
+            logging.error("Target %s: No job provided!", target)
+            raise falcon.HTTPMissingParam("job")
 
-        self._job = req.get_param("job")
-        if not self._job:
-            msg = f"Target {self.target}: No job provided!"
-            logging.error(msg)
-            raise falcon.HTTPInvalidParam(msg, "job")
-
-        logging.debug(f"Received Job: {self._job}")
+        logging.debug("Received Target %s with Job %s", target, job)
 
         ip_re = re.compile(
-            r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
+            r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}"
+            r"([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
         )
 
         resp.set_header("Content-Type", CONTENT_TYPE_LATEST)
 
-        self.host = self.target
-        if ip_re.match(self.target):
-            logging.debug(f"Target {self.target}: Target is an IP Address.")
+        host = None
+        if ip_re.match(target):
+            logging.debug("Target %s: Target is an IP Address.", target)
             try:
-                host = socket.gethostbyaddr(self.target)[0]
-                if host:
-                    self.host = host
+                host = socket.gethostbyaddr(target)[0]
             except socket.herror as err:
-                logging.warning(f"Target {self.target}: Reverse DNS lookup failed: {err}")
-                
+                msg = f"Target {target}: Reverse DNS lookup failed: {err}"
+                logging.error(msg)
+                raise falcon.HTTPInvalidParam(msg, "target")
         else:
-            logging.debug(f"Target {self.target}: Target is a hostname.")
+            logging.debug("Target %s: Target is a hostname.", target)
+            host = target
             try:
-                target = socket.gethostbyname(self.host)
-                if target:
-                    self.target = target
+                target = socket.gethostbyname(host)
             except socket.gaierror as err:
-                logging.warning(f"Target {self.target}: DNS lookup failed: {err}")
+                msg = f"Target {target}: DNS lookup failed: {err}"
+                logging.error(msg)
+                raise falcon.HTTPInvalidParam(msg, "target")
 
-        usr_env_var = self._job.replace("-", "_").upper() + "_USERNAME"
-        pwd_env_var = self._job.replace("-", "_").upper() + "_PASSWORD"
+        usr_env_var = job.replace("-", "_").upper() + "_USERNAME"
+        pwd_env_var = job.replace("-", "_").upper() + "_PASSWORD"
         usr = os.getenv(usr_env_var, self._config.get("username"))
         pwd = os.getenv(pwd_env_var, self._config.get("password"))
 
-        if not usr:
-            msg = f"Target {self.target}: Unknown job provided or no user found in environment and config file: {self._job}"
+        if not usr or not pwd:
+            msg = (
+                f"Target {target}: "
+                "Unknown job provided or "
+                f"no user/password found in environment and config file: {job}"
+            )
             logging.error(msg)
             raise falcon.HTTPInvalidParam(msg, "job")
 
-        if not pwd:
-            msg = f"Target {self.target}: Unknown job provided or no password found in environment and config file: {self._job}, {usr}"
-            logging.error(msg)
-            raise falcon.HTTPInvalidParam(msg, "job")
-
-        logging.debug(f"Target: {self.target}: Using user {usr}")
+        logging.debug("Target %s: Using user %s", target, usr)
 
         with RedfishMetricsCollector(
             self._config,
-            target=self.target,
-            host=self.host,
-            usr=usr,
-            pwd=pwd, 
+            target = target,
+            host = host,
+            usr = usr,
+            pwd = pwd,
             metrics_type = self.metrics_type
         ) as registry:
 
@@ -104,11 +118,10 @@ class metricsHandler:
 
             try:
                 # collect the actual metrics
-                resp.body = generate_latest(registry)
+                resp.text = generate_latest(registry)
                 resp.status = falcon.HTTP_200
 
-            except AttributeError as err:
-                resp.body = json.dumps({'status': 0, 'message': f"Something went wrong: {err}"})
-                resp.status = falcon.HTTP_500
-                logging.exception(f"Target {self.target}: An exception occured in {sys.exc_info()[-1].tb_frame.f_code.co_filename}:{sys.exc_info()[-1].tb_lineno}")
-
+            except Exception as err:
+                message = f"Exception: {traceback.format_exc()}"
+                logging.error("Target %s: %s", target, message)
+                raise falcon.HTTPBadRequest(description=message)

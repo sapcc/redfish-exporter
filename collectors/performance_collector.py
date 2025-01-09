@@ -60,7 +60,7 @@ class PerformanceCollector:
         metrics = ['CapacityWatts', 'Allocation']
 
         for metric in metrics:
-            if not metric in power_subsystem:
+            if metric not in power_subsystem:
                 continue
 
             if isinstance(power_subsystem[metric], dict):
@@ -186,7 +186,7 @@ class PerformanceCollector:
             )
 
             for metric in metrics:
-                if not metric in psu:
+                if metric not in psu:
                     continue
 
                 no_psu_metrics = False

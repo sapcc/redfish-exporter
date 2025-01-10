@@ -28,7 +28,6 @@ class PerformanceCollector:
             labels=self.col.labels,
             unit="Celsius"
         )
-        self.target = None
 
     def get_power_metrics(self):
         """Get the Power data from the Redfish API."""
@@ -102,7 +101,10 @@ class PerformanceCollector:
             )
             return no_psu_metrics
 
-        power_supplies = self.col.connect_server(power_supplies_url)['Members']
+        power_supplies = self.col.connect_server(power_supplies_url)
+
+        if 'Members' in power_supplies:
+            power_supplies = power_supplies['Members']
 
         for power_supply in power_supplies:
             no_psu_metrics = self.get_power_supply_metrics(power_supply)
@@ -112,7 +114,7 @@ class PerformanceCollector:
     def get_power_supply_metrics(self, power_supply):
         """Get power supply metrics and update labels."""
         fields = ["Name", "Manufacturer", "Model"]
-        metrics = ["PowerInputWatts", "PowerOutputWatts", "PowerCapacityWatts"]
+        metrics = ["PowerInputWatts", "PowerOutputWatts", "PowerCapacityWatts", "InputPowerWatts", "OutputPowerWatts"]
         no_psu_metrics = True
 
 

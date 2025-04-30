@@ -21,7 +21,7 @@ class WelcomePage:
     Create the Welcome page for the API.
     """
 
-    def on_get(self, resp):
+    def on_get(self, req, resp):
         """
         Define the GET method for the API.
         """
@@ -32,8 +32,9 @@ class WelcomePage:
         <h1>Redfish Exporter</h1>
         <h2>Prometheus Exporter for redfish API based servers monitoring</h2>
         <ul>
-            <li>Use <a href="/redfish">/redfish</a> to retrieve health metrics.</li>
-            <li>Use <a href="/firmware">/firmware</a> to retrieve firmware version metrics.</li>
+            <li><strong>Health Metrics:</strong> Use <code>/health</code> to retrieve health-related metrics, such as system status, memory errors, and power state.</li>
+            <li><strong>Firmware Metrics:</strong> Use <code>/firmware</code> to retrieve firmware version information for the server components.</li>
+            <li><strong>Performance Metrics:</strong> Use <code>/performance</code> to retrieve performance-related metrics like power consumption and temperature data.</li>
         </ul>
         """
 
@@ -75,9 +76,8 @@ class MetricsHandler:
             try:
                 host = socket.gethostbyaddr(target)[0]
             except socket.herror as err:
-                msg = f"Target {target}: Reverse DNS lookup failed: {err}"
-                logging.error(msg)
-                raise falcon.HTTPInvalidParam(msg, "target")
+                logging.warning("Target %s: Reverse DNS lookup failed: %s. Using IP address as host.", target, err)
+                host = target
         else:
             logging.debug("Target %s: Target is a hostname.", target)
             host = target

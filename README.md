@@ -26,11 +26,33 @@ HPE DL560 Gen10
 
 ## Example Call
 
-If you are logged into the POD running the exporter, you can call
+If you are logged into the POD running the exporter, you can retrieve metrics from a server, make an HTTP call to the exporter with the `target` and `job` parameters. The exporter supports the following endpoints:
+
+### `/health`
+Retrieves health-related metrics (e.g., system status, memory errors, power state).
 
 ```bash
-curl http://localhost:9200/redfish?target=server1.example.com&job=redfish-myjob
+curl "http://localhost:9220/health?target=server1.example.com&job=redfish-myjob"
 ```
+
+### `/firmware`
+Retrieves firmware version information for the server components.
+
+```bash
+curl "http://localhost:9220/firmware?target=server1.example.com&job=redfish-myjob"
+```
+
+### `/performance`
+Retrieves performance-related metrics (e.g., power consumption, temperature).
+
+```bash
+curl "http://localhost:9220/performance?target=server1.example.com&job=redfish-myjob"
+```
+
+**Notes**:
+- Replace `server1.example.com` with the hostname or IP address of your Redfish server.
+- Replace `redfish-myjob` with the name of your job (used to map credentials).
+- The exporter listens on port 9220 by default.
 
 ## Prerequisites and Installation
 
@@ -40,7 +62,18 @@ The exporter was written for Python 3.6 or newer. To install all modules needed 
 pip3 install --no-cache-dir -r requirements.txt
 ```
 
-There is also a docker file available to create a docker container to run the exporter.
+Alternatively, you can use the provided Dockerfile to build and run the exporter in a container.
+
+## Running with Docker
+
+To run the exporter in a Docker container, use the following command:
+
+```bash
+docker run -d -p 9220:9220 your-path/redfish-exporter:v0.1.0
+```
+
+**Notes**:
+- Mount a custom `config.yaml` file if needed (see below).
 
 ## Parameters
 

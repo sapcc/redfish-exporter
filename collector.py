@@ -211,7 +211,7 @@ class RedfishMetricsCollector:
 
         except requests.exceptions.HTTPError as err:
             self._last_http_code = err.response.status_code
-            if err.response.status_code == 401:
+            if err.response.status_code in [401,403]:
                 logging.error(
                     "Target %s: Authorization Error: "
                     "Wrong job provided or user/password set wrong on server %s: %s",

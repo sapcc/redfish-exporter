@@ -44,7 +44,7 @@ class FirmwareCollector:
 
         for fw_member in fw_collection['Members']:
             fw_member_url = fw_member['@odata.id']
-            # only look at entries on a Dell server if the device is markedd as installed
+            # only look at entries on a Dell server if the device is marked as installed
             if (search(".*Dell.*", self.col.manufacturer) and ("Installed" in fw_member_url)) or not search(".*Dell.*", self.col.manufacturer):
                 fw_item = self.col.connect_server(fw_member_url)
                 if not fw_item:

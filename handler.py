@@ -121,7 +121,7 @@ class MetricsHandler:
                 resp.text = generate_latest(registry)
                 resp.status = falcon.HTTP_200
 
-            except Exception as err:
+            except Exception:
                 message = f"Exception: {traceback.format_exc()}"
                 logging.error("Target %s: %s", target, message)
                 raise falcon.HTTPBadRequest(description=message)

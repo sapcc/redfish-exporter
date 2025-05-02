@@ -301,8 +301,11 @@ class RedfishMetricsCollector:
 
         if not server_info:
             return
-        self.manufacturer = server_info['Manufacturer']
-        self.model = server_info['Model']
+        self.manufacturer = server_info.get('Manufacturer')
+        self.model = server_info.get('Model')
+        if not self.manufacturer or not self.model:
+            logging.error("Target %s: No manufacturer or model found on server %s!", self.target, self.host)
+            return
         self.powerstate = power_states[server_info['PowerState'].lower()]
         # Dell has the Serial# in the SKU field, others in the SerialNumber field.
         if "SKU" in server_info and re.match(r'^[Dd]ell.*', server_info['Manufacturer']):

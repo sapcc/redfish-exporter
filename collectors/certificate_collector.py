@@ -9,12 +9,12 @@ from prometheus_client.core import GaugeMetricFamily
 class CertificateCollector:
     """Collects certificate information from the Redfish API."""
 
-    def __init__(self, host, target, labels):
+    def __init__(self, host, target, port, labels):
         self.host = host
         self.target = target
-        self.timeout = 10
+        self.port = port
         self.labels = labels
-        self.port = 443
+        self.timeout = 10
 
         self.cert_metrics_isvalid = GaugeMetricFamily(
                 name = "redfish_certificate_isvalid",

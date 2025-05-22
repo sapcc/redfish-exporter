@@ -1,5 +1,14 @@
 listen_port: 9220
 timeout: 10
 job: 'redfish-myjob'
-username: admin
-password: admin
+targets:
+  server1-example-com:
+    host: server1.example.com
+    username: admin
+    password: changeme
+    port: 8868
+  server2-example-com:
+    host: server2.example.com
+    username: admin
+    password: changeme
+    port: 8874

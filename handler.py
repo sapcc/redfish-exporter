@@ -63,35 +63,20 @@ class MetricsHandler:
 
         logging.debug("Received Target %s with Job %s", target, job)
 
-        ip_re = re.compile(
-            r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}"
-            r"([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
-        )
-
         resp.set_header("Content-Type", CONTENT_TYPE_LATEST)
 
-        host = None
-        if ip_re.match(target):
-            logging.debug("Target %s: Target is an IP Address.", target)
-            try:
-                host = socket.gethostbyaddr(target)[0]
-            except socket.herror as err:
-                logging.warning("Target %s: Reverse DNS lookup failed: %s. Using IP address as host.", target, err)
-                host = target
-        else:
-            logging.debug("Target %s: Target is a hostname.", target)
-            host = target
-            try:
-                target = socket.gethostbyname(host)
-            except socket.gaierror as err:
-                msg = f"Target {target}: DNS lookup failed: {err}"
-                logging.error(msg)
-                raise falcon.HTTPInvalidParam(msg, "target")
+        if not self._config["targets"].get(target,{}):
+            logging.error("Target parameter provided not found in config: %s", target)
+            raise falcon.HTTPMissingParam("target")
 
-        usr_env_var = job.replace("-", "_").upper() + "_USERNAME"
-        pwd_env_var = job.replace("-", "_").upper() + "_PASSWORD"
-        usr = os.getenv(usr_env_var, self._config.get("username"))
-        pwd = os.getenv(pwd_env_var, self._config.get("password"))
+        usr_env_var = job.replace("-", "_").upper() + target.replace("-", "_").upper() + "_USERNAME"
+        pwd_env_var = job.replace("-", "_").upper() + target.replace("-", "_").upper() + "_PASSWORD"
+
+        target_config = self._config["targets"][target]
+        usr = os.getenv(usr_env_var, target_config.get("username"))
+        pwd = os.getenv(pwd_env_var, target_config.get("password"))
+        port = target_config.get("port")
+        host = target_config.get("host")
 
         if not usr or not pwd:
             msg = (
@@ -105,11 +90,12 @@ class MetricsHandler:
         logging.debug("Target %s: Using user %s", target, usr)
 
         with RedfishMetricsCollector(
-            self._config,
+            target_config,
             target = target,
             host = host,
             usr = usr,
             pwd = pwd,
+            port = port,
             metrics_type = self.metrics_type
         ) as registry:
 

@@ -16,9 +16,10 @@ class RedfishMetricsCollector:
     def __enter__(self):
         return self
 
-    def __init__(self, config, target, host, usr, pwd, metrics_type):
+    def __init__(self, config, target, host, usr, pwd, port, metrics_type):
         self.target = target
         self.host = host
+        self.port = port
 
         self._username = usr
         self._password = pwd
@@ -26,6 +27,7 @@ class RedfishMetricsCollector:
         self.metrics_type = metrics_type
 
         self._timeout = int(os.getenv("TIMEOUT", config.get('timeout', 10)))
+        # self.labels = {"host": self.host, "port": self.port}
         self.labels = {"host": self.host}
         self._redfish_up = 0
         self._response_time = 0
@@ -72,7 +74,7 @@ class RedfishMetricsCollector:
 
     def get_session(self):
         """Get the url for the server info and messure the response time"""
-        logging.info("Target %s: Connecting to server %s", self.target, self.host)
+        logging.info("Target %s: Connecting to server %s:%s", self.target, self.host, self.port)
         start_time = time.time()
         server_response = self.connect_server("/redfish/v1", noauth=True)
 
@@ -114,7 +116,7 @@ class RedfishMetricsCollector:
             self._basic_auth = True
             return
 
-        sessions_url = f"https://{self.target}{session_service['Sessions']['@odata.id']}"
+        sessions_url = f"https://{self.host}:{self.port}{session_service['Sessions']['@odata.id']}"
         session_data = {"UserName": self._username, "Password": self._password}
         self._session.auth = None
         result = ""
@@ -182,7 +184,7 @@ class RedfishMetricsCollector:
         request_duration = 0
         request_start = time.time()
 
-        url = f"https://{self.target}{command}"
+        url = f"https://{self.host}:{self.port}{command}"
 
         # check if we already established a session with the server
         if not self._session:
@@ -315,7 +317,8 @@ class RedfishMetricsCollector:
 
         self.labels.update(
             {
-                "host": self.host,
+                "host": f"{self.host}:{self.port}",
+                "target": self.target,
                 "server_manufacturer": self.manufacturer,
                 "server_model": self.model,
                 "server_serial": self.serial
@@ -401,7 +404,7 @@ class RedfishMetricsCollector:
 
         if self.metrics_type == 'health':
 
-            cert_metrics = CertificateCollector(self.host, self.target, self.labels)
+            cert_metrics = CertificateCollector(self.host, self.target,self.port, self.labels)
             cert_metrics.collect()
 
             yield cert_metrics.cert_metrics_isvalid
@@ -467,7 +470,7 @@ class RedfishMetricsCollector:
         response = None
 
         if self._auth_token:
-            session_url = f"https://{self.target}{self._session_url}"
+            session_url = f"https://{self.host}:{self.port}{self._session_url}"
             headers = {"x-auth-token": self._auth_token}
 
             logging.debug("Target %s: Using URL %s", self.target, session_url)

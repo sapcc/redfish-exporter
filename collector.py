@@ -6,11 +6,14 @@ import sys
 import re
 import requests
 import redfish
+import math
 from prometheus_client.core import GaugeMetricFamily
 from collectors.performance_collector import PerformanceCollector
 from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector
 from collectors.certificate_collector import CertificateCollector
+from collectors.ethernet_collector import EthernetCollector
+from collectors.operating_system_collector import OperatingSystemCollector
 
 class RedfishMetricsCollector:
     """Class for collecting Redfish metrics."""
@@ -45,7 +48,7 @@ class RedfishMetricsCollector:
             "Thermal": "",
             "PowerSubsystem": "",
             "ThermalSubsystem": "",
-            "NetworkInterfaces": "",
+            "EthernetInterfaces": "",
         }
 
         self.server_health = 0
@@ -70,6 +73,11 @@ class RedfishMetricsCollector:
         self._basic_auth = False
         self._session = ""
         self.redfish_version = "not available"
+        self.health_summary_metrics = GaugeMetricFamily(
+            "redfish_health_summary",
+            "Redfish Server Monitoring Summary Metrics (CPU, Memory, etc.)",
+            labels=["host", "server_manufacturer", "server_model", "server_serial", "device_type", "cpu_model", "cpu_count", "total_system_memory_gb"]
+        )
 
     def get_session(self):
         """Get the url for the server info and messure the response time"""
@@ -308,60 +316,198 @@ class RedfishMetricsCollector:
         request_duration = round(time.time() - request_start, 2)
         logging.debug("Target %s: Request duration: %s", self.target, request_duration)
         return server_response
-
     def get_base_labels(self):
-        """Get the basic labels for the metrics."""
+        """Get base labels and populate Redfish component URLs."""
         systems = self.connect_server(self.urls['Systems'])
-
         if not systems:
+            logging.error("Target %s: No response from /Systems", self.target)
             return
 
         power_states = {"off": 0, "on": 1}
-        # Get the server info for the labels
-        server_info = {}
-        for member in systems['Members']:
-            self._systems_url = member['@odata.id']
-            info = self.connect_server(self._systems_url)
-            if info:
-                server_info.update(info)
 
-        if not server_info:
+        members = systems.get("Members", [])
+        if not members:
+            logging.error("Target %s: No system members found under /Systems", self.target)
             return
-        self.manufacturer = server_info.get('Manufacturer')
-        self.model = server_info.get('Model')
+
+        self._systems_url = members[0].get("@odata.id")
+        if not self._systems_url:
+            logging.error("Target %s: No @odata.id in first system member", self.target)
+            return
+
+        server_info = self.connect_server(self._systems_url)
+        if not server_info:
+            logging.error("Target %s: Could not fetch system info at %s", self.target, self._systems_url)
+            return
+        self.urls["EthernetInterfaces"] = server_info.get("EthernetInterfaces", {}).get("@odata.id", "")
+        logging.debug("EthernetInterfaces URL: %s", self.urls["EthernetInterfaces"])
+
+
+        #  Extract labels
+        self.manufacturer = server_info.get("Manufacturer", "Custom")
+        self.model = server_info.get("Model", "unknown")
+        self.serial = server_info.get("SerialNumber", "")
+
         if not self.manufacturer or not self.model:
             logging.error("Target %s: No manufacturer or model found on server %s!", self.target, self.host)
+            logging.debug("Target %s: Full server_info payload: %s", self.target, server_info)
             return
-        self.powerstate = power_states[server_info['PowerState'].lower()]
-        # Dell has the Serial# in the SKU field, others in the SerialNumber field.
-        if "SKU" in server_info and re.match(r'^[Dd]ell.*', server_info['Manufacturer']):
-            self.serial = server_info['SKU']
-        else:
-            self.serial = server_info['SerialNumber']
 
-        self.labels.update(
-            {
-                "host": self.host,
-                "server_manufacturer": self.manufacturer,
-                "server_model": self.model,
-                "server_serial": self.serial
+        power_state_raw = server_info.get("PowerState", "off").lower()
+        self.powerstate = power_states.get(power_state_raw, 0)
+
+        self.labels.update({
+            "host": self.host,
+            "server_manufacturer": self.manufacturer,
+            "server_model": self.model,
+            "server_serial": self.serial
+        })
+
+        #  Overall health
+        status_obj = server_info.get("Status", {})
+        self.server_health = self.status.get(status_obj.get("Health", "").lower(), 0)
+        # Store processor summary
+        processor_summary = server_info.get("ProcessorSummary", {})
+        if processor_summary:
+            labels = {
+                "device_type": "processor_summary",
+                "cpu_model": processor_summary.get("Model", "unknown"),
+                "cpu_count": str(processor_summary.get("Count", "unknown"))
             }
-        )
+            labels.update(self.labels)
+            self.health_summary_metrics.add_sample(
+                "redfish_health_summary",
+                value=self.status.get(processor_summary.get("Status", {}).get("Health", "").lower(), math.nan),
+                labels=labels
+            )
 
-        self.server_health = self.status[server_info['Status']['Health'].lower()]
+        # Store memory summary
+        memory_summary = server_info.get("MemorySummary", {})
+        if memory_summary:
+            labels = {
+                "device_type": "memory_summary",
+                "total_system_memory_gb": str(memory_summary.get("TotalSystemMemory", "unknown"))
+            }
+            labels.update(self.labels)
+            self.health_summary_metrics.add_sample(
+                "redfish_health_summary",
+                value=self.status.get(memory_summary.get("Status", {}).get("Health", "").lower(), math.nan),
+                labels=labels
+            )
 
-        # get the links of the parts for later
-        for url in self.urls:
-            if url in server_info:
-                self.urls[url] = server_info[url]['@odata.id']
 
-        # standard is a list but there are exceptions
-        if isinstance(server_info['Links']['Chassis'][0], str):
-            self.urls['Chassis'] = server_info['Links']['Chassis'][0]
-            self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]
-        else:
-            self.urls['Chassis'] = server_info['Links']['Chassis'][0]['@odata.id']
-            self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]['@odata.id']
+        #  Set component URLs
+        keys_direct = ["Processors", "Memory", "Storage", "Power", "Thermal", "EthernetInterfaces"]
+        for key in keys_direct:
+            self.urls[key] = server_info.get(key, {}).get("@odata.id", "")
+
+        links = server_info.get("Links", {})
+        chassis_list = links.get("Chassis", [])
+        if chassis_list:
+            chassis_ref = chassis_list[0]
+            self.urls["Chassis"] = chassis_ref["@odata.id"] if isinstance(chassis_ref, dict) else chassis_ref
+
+        manager_list = links.get("ManagedBy", [])
+        if manager_list:
+            manager_ref = manager_list[0]
+            self.urls["ManagedBy"] = manager_ref["@odata.id"] if isinstance(manager_ref, dict) else manager_ref
+
+        logging.debug("Target %s: Parsed Redfish component URLs: %s", self.target, self.urls)
+
+        #  Now try to discover thermal/power subsystems
+        self.get_chassis_urls()
+
+
+    # def get_base_labels(self):
+    #     """Get the basic labels for the metrics."""
+    #     systems = self.connect_server(self.urls['Systems'])
+
+    #     if not systems:
+    #         return
+
+    #     power_states = {"off": 0, "on": 1}
+    #     # Get the server info for the labels
+    #     # server_info = {}
+    #     members = systems.get("Members", [])
+    #     if not members:
+    #         logging.error("Target %s: No system members found under /Systems", self.target)
+    #         return
+    #     # Always take the first system
+    #     self._systems_url = members[0].get("@odata.id")
+    #     if not self._systems_url:
+    #         logging.error("Target %s: No @odata.id in first system member", self.target)
+    #         return
+    #     server_info = self.connect_server(self._systems_url)
+    #     if not server_info:
+    #         logging.error("Target %s: Could not fetch system info at %s", self.target, self._systems_url)
+    #         return
+    #     # for member in systems['Members']:
+    #     #     self._systems_url = member['@odata.id']
+    #     #     info = self.connect_server(self._systems_url)
+    #     #     if info:
+    #     #         server_info.update(info)
+
+    #     # if not server_info:
+    #     #     return
+    #     self.manufacturer = server_info.get('Manufacturer')
+    #     self.model = server_info.get('Model')
+    #     if not self.manufacturer or not self.model:
+    #         logging.error("Target %s: No manufacturer or model found on server %s!", self.target, self.host)
+    #         return
+    #     self.powerstate = power_states[server_info['PowerState'].lower()]
+    #     # Dell has the Serial# in the SKU field, others in the SerialNumber field.
+    #     if "SKU" in server_info and re.match(r'^[Dd]ell.*', server_info['Manufacturer']):
+    #         self.serial = server_info['SKU']
+    #     else:
+    #         self.serial = server_info['SerialNumber']
+
+    #     self.labels.update(
+    #         {
+    #             "host": self.host,
+    #             "server_manufacturer": self.manufacturer,
+    #             "server_model": self.model,
+    #             "server_serial": self.serial
+    #         }
+    #     )
+
+    #     self.server_health = self.status[server_info['Status']['Health'].lower()]
+
+    #     # get the links of the parts for later
+    #     # for url in self.urls:
+    #     #     if url in server_info:
+    #     #         self.urls[url] = server_info[url]['@odata.id']
+
+    #     # # standard is a list but there are exceptions
+    #     # if isinstance(server_info['Links']['Chassis'][0], str):
+    #     #     self.urls['Chassis'] = server_info['Links']['Chassis'][0]
+    #     #     self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]
+    #     # else:
+    #     #     self.urls['Chassis'] = server_info['Links']['Chassis'][0]['@odata.id']
+    #     #     self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]['@odata.id']
+    #     # Extract direct component paths
+        direct_keys = ["Processors", "Memory", "Storage", "Power", "Thermal", "EthernetInterfaces"]
+        for key in direct_keys:
+            self.urls[key] = server_info.get(key, {}).get("@odata.id", "")
+
+        # Handle nested Chassis and Manager links
+        chassis_links = server_info.get("Links", {}).get("Chassis", [])
+        if chassis_links:
+            chassis_ref = chassis_links[0]
+            if isinstance(chassis_ref, dict):
+                self.urls["Chassis"] = chassis_ref.get("@odata.id", "")
+            elif isinstance(chassis_ref, str):
+                self.urls["Chassis"] = chassis_ref
+
+        manager_links = server_info.get("Links", {}).get("ManagedBy", [])
+        if manager_links:
+            manager_ref = manager_links[0]
+            if isinstance(manager_ref, dict):
+                self.urls["ManagedBy"] = manager_ref.get("@odata.id", "")
+            elif isinstance(manager_ref, str):
+                self.urls["ManagedBy"] = manager_ref
+        
+        logging.debug("Target %s: Parsed component URLs: %s", self.target, self.urls)
+
 
         self.get_chassis_urls()
 
@@ -452,6 +598,7 @@ class RedfishMetricsCollector:
             yield metrics.mem_metrics_uncorrectable
             yield metrics.health_metrics
 
+
         # Get the firmware information
         if self.metrics_type == 'firmware':
             metrics = FirmwareCollector(self)
@@ -485,6 +632,33 @@ class RedfishMetricsCollector:
             value = duration,
             labels = self.labels,
         )
+        ether_collector = EthernetCollector(
+            self.host,
+            self.target,
+            self.labels,
+            self.urls,
+            self.connect_server
+        )
+        for metric in ether_collector.collect():
+            yield metric
+        os_collector = OperatingSystemCollector(
+            self.host,
+            self.target,
+            self.labels,
+            self.urls,
+            self.connect_server
+        )
+        os_collector = OperatingSystemCollector(self.host, self.target, self.labels, self.urls, self.connect_server)
+        for metric in os_collector.collect():
+            yield metric
+        # ether_collector.collect()
+        # yield ether_collector.ethernet_metrics
+        # eth_metrics = EthernetCollector(self.host, self.target, self.labels, self.urls)
+        # eth_metrics.collect()
+        # yield eth_metrics.ethernet_health_metrics
+
+        if hasattr(self, "health_summary_metrics"):
+            yield self.health_summary_metrics
         yield scrape_metrics
 
     def __exit__(self, exc_type, exc_val, exc_tb):

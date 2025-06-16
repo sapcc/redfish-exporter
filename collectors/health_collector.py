@@ -206,8 +206,12 @@ class HealthCollector():
         power_data = self.col.connect_server(self.col.urls["Power"])
         if not power_data:
             return
-
-        for psu in power_data["PowerSupplies"]:
+        power_supplies = power_data.get("PowerSupplies", [])
+        if not power_supplies:
+            logging.warning("Target %s: No PowerSupplies found in Power data!", self.col.target)
+            return
+        for psu in power_supplies:
+        #for psu in power_data["PowerSupplies"]:
             psu_name = psu["Name"] if "Name" in psu and psu["Name"] is not None else "unknown"
             psu_model = psu["Model"] if "Model" in psu and psu["Model"] is not None else "unknown"
 
@@ -224,6 +228,39 @@ class HealthCollector():
                 "Health",
                 current_labels
             )
+    def get_ethernet_health(self):
+        """Get Ethernet Interface data from the Redfish API."""
+        logging.debug("Target %s: Get the Ethernet Interface health data.", self.col.target)
+
+        eth_collection = self.col.connect_server(self.col.urls["NetworkInterfaces"])
+        if not eth_collection or "Members" not in eth_collection:
+            logging.warning("Target %s: No Ethernet Interfaces found.", self.col.target)
+            return
+
+        for iface in eth_collection["Members"]:
+            iface_data = self.col.connect_server(iface["@odata.id"])
+            if not iface_data:
+                continue
+
+            eth_status = self.extract_health_status(
+                iface_data, "EthernetInterface", iface_data.get("Id", "unknown")
+            )
+            current_labels = {
+                "device_type": "ethernet",
+                "device_name": iface_data.get("Name", "unknown"),
+                "mac_address": iface_data.get("MACAddress", "unknown"),
+                "speed_mbps": str(iface_data.get("SpeedMbps", "unknown")),
+                "interface_enabled": str(iface_data.get("InterfaceEnabled", "unknown")),
+            }
+            current_labels.update(self.col.labels)
+
+            self.add_metric_sample(
+                "redfish_health",
+                {"Health": eth_status},
+                "Health",
+                current_labels
+            )
+
 
     def get_thermal_health(self):
         """Get the Thermal data from the Redfish API."""
@@ -231,8 +268,12 @@ class HealthCollector():
         thermal_data = self.col.connect_server(self.col.urls["Thermal"])
         if not thermal_data:
             return
+        fans = thermal_data.get("Fans",[])
+        if not fans:
+            logging.warning("Target %s: No PowerSupplies found in Power Data!", self.col.target)
+            return
 
-        for fan in thermal_data["Fans"]:
+        for fan in fans:
             fan_name = fan.get("Name", "unknown")
             current_labels = {
                 "device_type": "fan",
@@ -370,7 +411,7 @@ class HealthCollector():
             current_labels
         )
 
-        for url_key in ["Processors", "Storage", "Chassis", "Power", "Thermal", "Memory"]:
+        for url_key in ["Processors", "Storage", "Chassis", "Power", "Thermal", "Memory", "NetworkInterfaces"]:
             self.collect_health_data(url_key)
 
     def __exit__(self, exc_type, exc_val, exc_tb):

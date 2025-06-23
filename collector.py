@@ -14,6 +14,15 @@ from collectors.health_collector import HealthCollector
 from collectors.certificate_collector import CertificateCollector
 from collectors.ethernet_collector import EthernetCollector
 from collectors.operating_system_collector import OperatingSystemCollector
+from collectors.recursive_collector import RecursiveCollector
+from collectors.system_collector import SystemCollector
+from collectors.dcn_collector import DistributedControlNodeCollector
+from collectors.bus_collector import BusCollector
+from collectors.module_collector import ModuleCollector
+from collectors.channel_collector import ChannelCollector
+from collectors.utils import _extract_kv_metrics
+
+
 
 class RedfishMetricsCollector:
     """Class for collecting Redfish metrics."""
@@ -23,6 +32,7 @@ class RedfishMetricsCollector:
     def __init__(self, config, target, host, usr, pwd, metrics_type):
         self.target = target
         self.host = host
+        self.config = config
 
         self._username = usr
         self._password = pwd
@@ -641,6 +651,31 @@ class RedfishMetricsCollector:
         )
         for metric in ether_collector.collect():
             yield metric
+        # SYSTEM collector
+        system_collector = SystemCollector(self.host, self.target, self.labels, self.urls, self.connect_server)
+        for metric in system_collector.collect():
+            yield metric
+
+        # DCN collector
+        dcn_collector = DistributedControlNodeCollector(self.host, self.target, self.labels, self.urls, self.connect_server)
+        for metric in dcn_collector.collect():
+            yield metric
+
+        # BUS collector
+        bus_collector = BusCollector(self.host, self.target, self.labels, self.urls, self.connect_server)
+        for metric in bus_collector.collect():
+            yield metric
+
+        # MODULE collector
+        module_collector = ModuleCollector(self.host, self.target, self.labels, self.urls, self.connect_server)
+        for metric in module_collector.collect():
+            yield metric
+
+        # CHANNEL collector
+        channel_collector = ChannelCollector(self.host, self.target, self.labels, self.urls, self.connect_server)
+        for metric in channel_collector.collect():
+            yield metric
+
         os_collector = OperatingSystemCollector(
             self.host,
             self.target,
@@ -656,6 +691,19 @@ class RedfishMetricsCollector:
         # eth_metrics = EthernetCollector(self.host, self.target, self.labels, self.urls)
         # eth_metrics.collect()
         # yield eth_metrics.ethernet_health_metrics
+        # recursive_collector = RecursiveCollector(
+        #     host=self.host,
+        #     target=self.target,
+        #     labels=self.labels,
+        #     # start_path="/redfish/v1/Systems/AXCF3152/DistributedControlNode/Busses/Axioline/IOModules",
+        #     start_path="/redfish/v1/Systems",
+        #     connect_fn=self.connect_server,
+        #     # max_depth=8  # Adjust as needed
+        #     config=self.config
+        # )
+        # for metric in recursive_collector.collect():
+        #     yield metric
+
 
         if hasattr(self, "health_summary_metrics"):
             yield self.health_summary_metrics

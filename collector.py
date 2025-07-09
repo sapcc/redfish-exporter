@@ -450,7 +450,7 @@ class RedfishMetricsCollector:
 
         scrape_metrics = GaugeMetricFamily(
             f"redfish_{self.metrics_type}_scrape_duration_seconds",
-            f"Redfish Server Monitoring redfish {self.metrics_type} scrabe duration in seconds",
+            f"Redfish Server Monitoring redfish {self.metrics_type} scrape duration in seconds",
             labels = self.labels,
         )
 

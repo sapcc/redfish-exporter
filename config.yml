@@ -1,5 +1,7 @@
 listen_port: 9220
 timeout: 10
 job: 'redfish-myjob'
-username: admin
-password: admin
+username: root
+password: f641e576
+recursive:
+      include_logs: false

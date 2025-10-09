@@ -66,14 +66,17 @@ Alternatively, you can use the provided Dockerfile to build and run the exporter
 
 ## Running with Docker
 
-To run the exporter in a Docker container, use the following command:
+To build the container, the following command can be used:
 
 ```bash
-docker run -d -p 9220:9220 your-path/redfish-exporter:v0.1.0
+docker build -t your-path/redfish-exporter:v0.1.0 .
 ```
 
-**Notes**:
-- Mount a custom `config.yaml` file if needed (see below).
+This will have the default configuration stored in config.yml. It is recommended that if you need to change the configuration, you make a copy of the file and mount it to the container when it is executed. Once this is done, run the exporter in a Docker container using the following command:
+
+```bash
+docker run -d -p 9220:9220  -v ${PWD}/myconfig.yml:/redfish_exporter/config.yml  your-path/redfish-exporter:v0.1.0
+```
 
 ## Parameters
 

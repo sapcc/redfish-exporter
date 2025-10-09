@@ -1,4 +1,4 @@
-FROM keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/ubuntu:latest
+FROM ubuntu:latest
 
 RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get update \
@@ -31,3 +31,5 @@ RUN /usr/sbin/update-ca-certificates
 
 LABEL source_repository="https://github.com/sapcc/redfish-exporter"
 LABEL maintainer="Bernd Kuespert <bernd.kuespert@sap.com>"
+
+CMD ["python3", "main.py"]

@@ -5,6 +5,7 @@ import time
 import sys
 import re
 import requests
+import falcon
 from prometheus_client.core import GaugeMetricFamily
 from collectors.performance_collector import PerformanceCollector
 from collectors.firmware_collector import FirmwareCollector
@@ -107,9 +108,10 @@ class RedfishMetricsCollector:
 
         if self._last_http_code != 200:
             logging.warning(
-                "Target %s: Failed to get a session from server %s!",
+                "Target %s: Failed to get a session from server %s! (HTTP code: %s)",
                 self.target,
-                self.host
+                self.host,
+                self._last_http_code
             )
             self._basic_auth = True
             return
@@ -164,12 +166,31 @@ class RedfishMetricsCollector:
             )
             self._basic_auth = True
 
-        if result:
-            if result.status_code in [200, 201]:
-                self._auth_token = result.headers['X-Auth-Token']
-                self._session_url = result.json()['@odata.id']
-                logging.info("Target %s: Got an auth token from server %s!", self.target, self.host)
-                self._redfish_up = 1
+        if result and result.status_code in [200, 201]:
+            self._auth_token = result.headers['X-Auth-Token']
+            session_url = result.headers.get('Location')
+
+            if not self._auth_token:
+                logging.warning("Target %s: No X-Auth-Token in headers", self.target)
+                self._redfish_up = 0
+                return    
+
+            if not session_url:
+                try:
+                    json_body = result.json()
+                    session_url = json_body.get('@odata.id')
+                    logging.debug("Session URL from JSON: %s", session_url)
+                except (ValueError, requests.exceptions.JSONDecodeError) as e:
+                    logging.warning("Invalid or empty JSON body. Exception: %s", e)
+
+            if not session_url:
+                logging.warning("Session URL not found in either JSON body or Location header.")
+                self._redfish_up = 0
+                return
+
+            self._session_url = session_url
+            logging.info("Target %s: Got an auth token from server %s!", self.target, self.host)
+            self._redfish_up = 1
 
     def connect_server(self, command, noauth=False, basic_auth=False):
         """Connect to the server and get the data."""

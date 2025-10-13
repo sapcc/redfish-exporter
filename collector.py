@@ -5,7 +5,7 @@ import time
 import sys
 import re
 import requests
-import falcon
+
 from prometheus_client.core import GaugeMetricFamily
 from collectors.performance_collector import PerformanceCollector
 from collectors.firmware_collector import FirmwareCollector

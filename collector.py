@@ -514,7 +514,6 @@ class RedfishMetricsCollector:
                     self.target,
                     self.host
                 )
-                logging.warning("Target %s: Token: %s", self.target, self._auth_token)
 
         else:
             logging.debug(

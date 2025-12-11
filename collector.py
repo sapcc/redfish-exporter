@@ -489,7 +489,10 @@ class RedfishMetricsCollector:
         response = None
 
         if self._auth_token:
-            session_url = f"https://{self.target}{self._session_url}"
+            if self._session_url.startswith("http"):
+                session_url = self._session_url
+            else:
+                session_url = f"https://{self.host}{self._session_url}"
             headers = {"x-auth-token": self._auth_token}
 
             logging.debug("Target %s: Using URL %s", self.target, session_url)

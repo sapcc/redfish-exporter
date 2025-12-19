@@ -8,6 +8,7 @@ import requests
 
 from prometheus_client.core import GaugeMetricFamily
 from collectors.performance_collector import PerformanceCollector
+from collectors.bios_collector import BiosCollector
 from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector
 from collectors.certificate_collector import CertificateCollector
@@ -45,7 +46,7 @@ class RedfishMetricsCollector:
             "Thermal": "",
             "PowerSubsystem": "",
             "ThermalSubsystem": "",
-            "NetworkInterfaces": "",
+            "NetworkInterfaces": ""
         }
 
         self.server_health = 0
@@ -454,6 +455,12 @@ class RedfishMetricsCollector:
             metrics.collect()
 
             yield metrics.fw_metrics
+
+        # Get the bios settings
+        if self.metrics_type == 'bios':
+            metrics = BiosCollector(self)
+            for metric in metrics.collect():
+                yield metric
 
         # Get the performance information
         if self.metrics_type == 'performance':

@@ -167,7 +167,7 @@ class RedfishMetricsCollector:
             )
             self._basic_auth = True
 
-        if result and result.status_code in [200, 201]:
+        if result and result.status_code in [200, 201, 202, 204]:
             self._auth_token = result.headers['X-Auth-Token']
             session_url = result.headers.get('Location')
 
@@ -535,3 +535,4 @@ class RedfishMetricsCollector:
         if self._session:
             logging.info("Target %s: Closing requests session.", self.target)
             self._session.close()
+

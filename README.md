@@ -49,6 +49,13 @@ Retrieves performance-related metrics (e.g., power consumption, temperature).
 curl "http://localhost:9220/performance?target=server1.example.com&job=redfish-myjob"
 ```
 
+### `/sensors`
+Retrieves sensor-related metrics (e.g. energy, voltage, current, temperature, ...).
+
+```bash
+curl "http://localhost:9220/sensors?target=server1.example.com&job=redfish-myjob"
+```
+
 **Notes**:
 - Replace `server1.example.com` with the hostname or IP address of your Redfish server.
 - Replace `redfish-myjob` with the name of your job (used to map credentials).
@@ -111,7 +118,7 @@ job: 'redfish-myjob'
 
 ## Exported Metrics
 
-All metrics returned by the redfish exporter are gauge metrics.
+All metrics returned by the redfish exporter are gauges, except energy measurements from sensors.
 
 ### redfish_up
 

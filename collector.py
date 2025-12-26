@@ -12,6 +12,7 @@ from collectors.bios_collector import BiosCollector
 from collectors.firmware_collector import FirmwareCollector
 from collectors.health_collector import HealthCollector
 from collectors.certificate_collector import CertificateCollector
+from collectors.sensors_collector import SensorsCollector
 
 class RedfishMetricsCollector:
     """Class for collecting Redfish metrics."""
@@ -46,7 +47,8 @@ class RedfishMetricsCollector:
             "Thermal": "",
             "PowerSubsystem": "",
             "ThermalSubsystem": "",
-            "NetworkInterfaces": ""
+            "NetworkInterfaces": "",
+            "Sensors": "",
         }
 
         self.server_health = 0
@@ -368,7 +370,7 @@ class RedfishMetricsCollector:
         if not chassis_data:
             return None
 
-        urls = ['PowerSubsystem', 'Power', 'ThermalSubsystem', 'Thermal']
+        urls = ['PowerSubsystem', 'Power', 'ThermalSubsystem', 'Thermal', 'Sensors']
 
         for url in urls:
             if url in chassis_data:
@@ -469,6 +471,10 @@ class RedfishMetricsCollector:
 
             yield metrics.power_metrics
             yield metrics.temperature_metrics
+
+        if self.metrics_type == 'sensors':
+            metrics = SensorsCollector(self)
+            yield from metrics.collect()
 
         # Finish with calculating the scrape duration
         duration = round(time.time() - self._start_time, 2)

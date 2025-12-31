@@ -108,11 +108,13 @@ class HealthCollector():
 
     def get_controller_details(self, controller_data):
         """Get controller details from controller data."""
-        if controller_data.get("StorageControllers"):
-            if isinstance(controller_data["StorageControllers"], list):
-                return controller_data["StorageControllers"][0]
-            return list(controller_data["StorageControllers"].values())[0]
-        return controller_data
+        storage_controllers = controller_data.get("StorageControllers", [])
+        if not storage_controllers:
+            return controller_data
+
+        if isinstance(storage_controllers, list):
+            return storage_controllers[0]
+        return list(storage_controllers.values())[0]
 
     def get_controller_name(self, controller_details, controller_data):
         """Get controller name from controller details or data."""
@@ -206,8 +208,13 @@ class HealthCollector():
         power_data = self.col.connect_server(self.col.urls["Power"])
         if not power_data:
             return
-
-        for psu in power_data["PowerSupplies"]:
+        
+        power_supplies = power_data.get("PowerSupplies", [])
+        if not power_supplies:
+            logging.warning("Target %s: No PowerSupplies found in Power data!", self.col.target)
+            return
+        
+        for psu in power_supplies:
             psu_name = psu["Name"] if "Name" in psu and psu["Name"] is not None else "unknown"
             psu_model = psu["Model"] if "Model" in psu and psu["Model"] is not None else "unknown"
 
@@ -232,7 +239,15 @@ class HealthCollector():
         if not thermal_data:
             return
 
-        for fan in thermal_data["Fans"]:
+        fans = thermal_data.get("Fans", [])
+        if not fans:
+            logging.warning(
+                "Target %s: No Fans found in Thermal data!",
+                self.col.target,
+            )
+            return
+
+        for fan in fans:
             fan_name = fan.get("Name", "unknown")
             current_labels = {
                 "device_type": "fan",

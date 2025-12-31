@@ -39,6 +39,7 @@ def falcon_app(config):
     api.add_route("/bios",  MetricsHandler(config, metrics_type='bios'))
     api.add_route("/firmware", MetricsHandler(config, metrics_type='firmware'))
     api.add_route("/performance", MetricsHandler(config, metrics_type='performance'))
+    api.add_route("/sensors", MetricsHandler(config, metrics_type='sensors'))
     api.add_route("/", WelcomePage())
 
     with make_server(addr, port, api, ThreadingWSGIServer, handler_class=_SilentHandler) as httpd:

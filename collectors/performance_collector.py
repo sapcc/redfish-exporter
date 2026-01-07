@@ -43,7 +43,7 @@ class PerformanceCollector:
 
         if no_psu_metrics:
             logging.warning(
-                "Target %s, Host %s, Model %s: No power url found.",
+                "Target %s, Host %s, Model %s: No power metrics could be collected.",
                 self.col.target,
                 self.col.host,
                 self.col.model
@@ -56,6 +56,15 @@ class PerformanceCollector:
 
         logging.debug("Target %s:Checking PowerSubsystem ...", self.col.target)
         power_subsystem = self.col.connect_server(self.col.urls['PowerSubsystem'])
+        
+        # Check if power_subsystem data was received (connect_server returns "" on error)
+        if not power_subsystem:
+            logging.warning(
+                "Target %s: No power subsystem data received, skipping power metrics.",
+                self.col.target
+            )
+            return no_psu_metrics
+        
         metrics = ['CapacityWatts', 'Allocation']
 
         for metric in metrics:
@@ -102,6 +111,14 @@ class PerformanceCollector:
             return no_psu_metrics
 
         power_supplies = self.col.connect_server(power_supplies_url)
+        
+        # Check if power_supplies data was received (connect_server returns "" on error)
+        if not power_supplies:
+            logging.warning(
+                "Target %s: No power supplies data received.",
+                self.col.target
+            )
+            return no_psu_metrics
 
         if 'Members' in power_supplies:
             power_supplies = power_supplies['Members']
@@ -120,6 +137,14 @@ class PerformanceCollector:
 
         power_supply_labels = {}
         power_supply_data = self.col.connect_server(power_supply['@odata.id'])
+        
+        # Check if power_supply data was received (connect_server returns "" on error)
+        if not power_supply_data:
+            logging.warning(
+                "Target %s: No power supply data received.",
+                self.col.target
+            )
+            return no_psu_metrics
 
         if 'Metrics' not in power_supply_data:
             logging.warning(
@@ -138,6 +163,14 @@ class PerformanceCollector:
 
         power_supply_metrics_url = power_supply_data['Metrics']['@odata.id']
         power_supply_metrics = self.col.connect_server(power_supply_metrics_url)
+        
+        # Check if power_supply metrics data was received (connect_server returns "" on error)
+        if not power_supply_metrics:
+            logging.warning(
+                "Target %s: No power supply metrics data received.",
+                self.col.target
+            )
+            return no_psu_metrics
 
         no_psu_metrics = False
         for metric in metrics:
@@ -165,7 +198,13 @@ class PerformanceCollector:
         no_psu_metrics = True
 
         power_data = self.col.connect_server(self.col.urls['Power'])
-        if not power_data:
+        
+        # Check if power_data was received and has PowerSupplies (connect_server returns "" on error)
+        if not power_data or 'PowerSupplies' not in power_data:
+            logging.warning(
+                "Target %s: No power data received or PowerSupplies not found.",
+                self.col.target
+            )
             return no_psu_metrics
 
         metrics = [
@@ -218,8 +257,34 @@ class PerformanceCollector:
 
         if self.col.urls['ThermalSubsystem']:
             thermal_subsystem = self.col.connect_server(self.col.urls['ThermalSubsystem'])
+            
+            # Check if thermal_subsystem data was received (connect_server returns "" on error)
+            if not thermal_subsystem:
+                logging.warning(
+                    "Target %s: No thermal subsystem data received, skipping temperature metrics.",
+                    self.col.target
+                )
+                return
+            
+            # Check if ThermalMetrics key exists
+            if 'ThermalMetrics' not in thermal_subsystem or '@odata.id' not in thermal_subsystem.get('ThermalMetrics', {}):
+                logging.warning(
+                    "Target %s: ThermalMetrics not found in thermal subsystem data.",
+                    self.col.target
+                )
+                return
+            
             thermal_metrics_url = thermal_subsystem['ThermalMetrics']['@odata.id']
             result = self.col.connect_server(thermal_metrics_url)
+            
+            # Check if thermal metrics data was received (connect_server returns "" on error)
+            if not result:
+                logging.warning(
+                    "Target %s: No thermal metrics data received.",
+                    self.col.target
+                )
+                return
+            
             thermal_metrics = result.get('TemperatureSummaryCelsius', {})
 
             for metric in thermal_metrics:

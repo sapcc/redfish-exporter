@@ -157,7 +157,9 @@ class PerformanceCollector:
             return no_psu_metrics
 
         for field in fields:
-            power_supply_labels.update({field: power_supply_data.get(field, 'unknown')})
+            field_value = power_supply_data.get(field, 'unknown')
+            # Ensure None values are replaced with 'unknown' for Prometheus label compatibility
+            power_supply_labels.update({field: field_value if field_value is not None else 'unknown'})
 
         power_supply_labels.update(self.col.labels)
 

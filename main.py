@@ -55,7 +55,7 @@ def enable_logging(filename, debug):
     logger = logging.getLogger()
 
     formatter = logging.Formatter(
-        '%(asctime)-15s %(process)d %(filename)24s:%(lineno)-3d %(levelname)-7s %(message)s'
+        '%(asctime)-15s %(process)d %(filename)24s:%(lineno)-4d %(levelname)-7s %(message)s'
     )
 
     if debug:

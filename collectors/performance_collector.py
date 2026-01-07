@@ -54,7 +54,7 @@ class PerformanceCollector:
         no_psu_metrics = True
         power_supplies_url = None
 
-        logging.debug("Target %s:Checking PowerSubsystem ...", self.col.target)
+        logging.debug("Target %s: Checking PowerSubsystem ...", self.col.target)
         power_subsystem = self.col.connect_server(self.col.urls['PowerSubsystem'])
         
         # Check if power_subsystem data was received (connect_server returns "" on error)

@@ -35,14 +35,27 @@ class SensorsCollector:
         url = self.collector.urls['Sensors']
         sensors = self.collector.connect_server(url)
 
-        for sensor_ref in sensors.get('Members', []):
-            metric = self.collector.connect_server(sensor_ref['@odata.id'])
+        if sensors is None or 'Members' not in sensors:
+            logging.warning("Target %s: Cannot get Sensors data!", self.collector.target)
+            return []
+
+        if sensors['Members'] == []:
+            logging.info("Target %s: No Sensors data found.", self.collector.target)
+            return []
+
+        for sensor in sensors['Members']:
+            metric = self.collector.connect_server(sensor['@odata.id'])
 
             status = metric.get('Status', {})
             state = status.get('State')
             reading = metric.get('Reading')
 
             if state != 'Enabled' or reading is None:
+                logging.debug(
+                    "Target %s: Sensor %s is not enabled or has no reading.",
+                    self.collector.target,
+                    metric.get('Id', 'unknown'),
+                )
                 continue
 
             labels = ([self.collector.labels[key] for key in self.collector.labels.keys()]

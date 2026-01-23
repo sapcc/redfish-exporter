@@ -49,7 +49,7 @@ def falcon_app(config):
             httpd.serve_forever()
         except (KeyboardInterrupt, SystemExit):
             logging.info("Stopping Redfish Prometheus Server")
-            exit(0)
+            sys.exit(0)
 
 def enable_logging(filename, debug):
     """enable logging"""

@@ -56,6 +56,8 @@ class RedfishMetricsCollector:
         self.manufacturer = ""
         self.model = ""
         self.serial = ""
+        self.vendor = ""
+        self.product = ""
         self.status = {
             "ok": 0,
             "operable": 0,
@@ -91,6 +93,14 @@ class RedfishMetricsCollector:
 
         if "RedfishVersion" in server_response:
             self.redfish_version = server_response['RedfishVersion']
+
+        if "Vendor" in server_response:
+            self.vendor = server_response['Vendor']
+            logging.debug("Target %s: Vendor from root: %s", self.target, self.vendor)
+
+        if "Product" in server_response:
+            self.product = server_response['Product']
+            logging.debug("Target %s: Product from root: %s", self.target, self.product)
 
         for key in ["Systems", "SessionService"]:
             if key in server_response:
@@ -326,7 +336,15 @@ class RedfishMetricsCollector:
         if not server_info:
             return
         self.manufacturer = server_info.get('Manufacturer')
+        # Use Vendor from /redfish/v1 as fallback if Manufacturer is not available
+        if not self.manufacturer and self.vendor:
+            self.manufacturer = self.vendor
+            logging.info("Target %s: Using Vendor field as Manufacturer: %s", self.target, self.vendor)
         self.model = server_info.get('Model')
+        # Use Product from /redfish/v1 as fallback if Model is not available
+        if not self.model and self.product:
+            self.model = self.product
+            logging.info("Target %s: Using Product field as Model: %s", self.target, self.product)
         if not self.manufacturer or not self.model:
             logging.error("Target %s: No manufacturer or model found on server %s!", self.target, self.host)
             return

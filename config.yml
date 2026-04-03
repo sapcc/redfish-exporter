@@ -1,5 +1,5 @@
 listen_port: 9220
-timeout: 10
+timeout: 30
 job: 'redfish-myjob'
 username: admin
 password: admin

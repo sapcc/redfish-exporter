@@ -129,6 +129,14 @@ class RedfishMetricsCollector:
             self._basic_auth = True
             return
 
+        if not session_service or 'Sessions' not in session_service:
+            logging.warning(
+                "Target %s: No Sessions URL in response from server %s, falling back to basic auth.",
+                self.target, self.host
+            )
+            self._basic_auth = True
+            return
+
         sessions_url = f"https://{self.target}{session_service['Sessions']['@odata.id']}"
         session_data = {"UserName": self._username, "Password": self._password}
         self._session.auth = None

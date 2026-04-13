@@ -301,35 +301,20 @@ class RedfishMetricsCollector:
 
                     if "@Message.ExtendedInfo" in req_text['error']:
 
-                        if isinstance(
-                            req_text['error']['@Message.ExtendedInfo'],
-                            list
-                        ):
-                            if "Message" in (
-                                req_text['error']['@Message.ExtendedInfo'][0]
-                            ):
+                        if isinstance(req_text['error']['@Message.ExtendedInfo'], list):
+                            if "Message" in req_text['error']['@Message.ExtendedInfo'][0]:
                                 logging.debug(
                                     "Target %s: %s",
                                     self.target,
-                                    req_text['error'][
-                                        '@Message.ExtendedInfo'
-                                    ][0]['Message']
+                                    req_text['error']['@Message.ExtendedInfo'][0]['Message']
                                 )
 
-                        elif isinstance(
-                            req_text['error']['@Message.ExtendedInfo'],
-                            dict
-                        ):
-
-                            if "Message" in (
-                                req_text['error']['@Message.ExtendedInfo']
-                            ):
+                        elif isinstance(req_text['error']['@Message.ExtendedInfo'], dict):
+                            if "Message" in req_text['error']['@Message.ExtendedInfo']:
                                 logging.debug(
                                     "Target %s: %s",
                                     self.target,
-                                    req_text['error'][
-                                        '@Message.ExtendedInfo'
-                                    ]['Message']
+                                    req_text['error']['@Message.ExtendedInfo']['Message']
                                 )
 
         request_duration = round(time.time() - request_start, 2)

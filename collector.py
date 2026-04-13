@@ -51,7 +51,7 @@ class RedfishMetricsCollector:
             "Sensors": "",
         }
 
-        self.server_health = 0
+        self.server_health = None
 
         self.manufacturer = ""
         self.model = ""
@@ -356,9 +356,9 @@ class RedfishMetricsCollector:
         self.powerstate = power_states[power_state.lower()] if power_state else 0
         # Dell has the Serial# in the SKU field, others in the SerialNumber field.
         if "SKU" in server_info and re.match(r'^[Dd]ell.*', server_info['Manufacturer']):
-            self.serial = server_info['SKU']
+            self.serial = server_info.get('SKU', 'unknown')
         else:
-            self.serial = server_info['SerialNumber']
+            self.serial = server_info.get('SerialNumber', 'unknown')
 
         self.labels.update(
             {
@@ -369,7 +369,12 @@ class RedfishMetricsCollector:
             }
         )
 
-        self.server_health = self.status[server_info['Status']['Health'].lower()]
+        status = server_info.get('Status', {})
+        health = status.get('Health') if isinstance(status, dict) else None
+        if health:
+            self.server_health = self.status[health.lower()]
+        else:
+            logging.warning("Target %s: No system health data available on server %s!", self.target, self.host)
 
         # get the links of the parts for later
         for url in self.urls:
@@ -377,12 +382,19 @@ class RedfishMetricsCollector:
                 self.urls[url] = server_info[url]['@odata.id']
 
         # standard is a list but there are exceptions
-        if isinstance(server_info['Links']['Chassis'][0], str):
-            self.urls['Chassis'] = server_info['Links']['Chassis'][0]
-            self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]
+        links = server_info.get('Links', {})
+        chassis_list = links.get('Chassis', [])
+        managed_by_list = links.get('ManagedBy', [])
+        if chassis_list and managed_by_list:
+            if isinstance(chassis_list[0], str):
+                self.urls['Chassis'] = chassis_list[0]
+                self.urls['ManagedBy'] = managed_by_list[0]
+            else:
+                self.urls['Chassis'] = chassis_list[0]['@odata.id']
+                self.urls['ManagedBy'] = managed_by_list[0]['@odata.id']
         else:
-            self.urls['Chassis'] = server_info['Links']['Chassis'][0]['@odata.id']
-            self.urls['ManagedBy'] = server_info['Links']['ManagedBy'][0]['@odata.id']
+            logging.warning("Target %s: No Chassis/ManagedBy links found on server %s!", self.target, self.host)
+            return
 
         self.get_chassis_urls()
 

@@ -46,6 +46,9 @@ class SensorsCollector:
         for sensor in sensors['Members']:
             metric = self.collector.connect_server(sensor['@odata.id'])
 
+            if not metric:
+                continue
+
             status = metric.get('Status', {})
             state = status.get('State')
             reading = metric.get('Reading')

@@ -211,7 +211,7 @@ class RedfishMetricsCollector:
 
         req = ""
         req_text = ""
-        server_response = ""
+        server_response = None
         self._last_http_code = 200
         request_duration = 0
         request_start = time.time()
@@ -276,6 +276,13 @@ class RedfishMetricsCollector:
 
             except requests.JSONDecodeError:
                 logging.debug("Target %s: No json data received.", self.target)
+            except requests.exceptions.ChunkedEncodingError as err:
+                logging.error(
+                    "Target %s: Connection lost while reading response from %s: %s",
+                    self.target, self.host, err
+                )
+                self._last_http_code = 444
+                return server_response
 
             # req will evaluate to True if the status code was between 200 and 400
             # and False otherwise.

@@ -248,7 +248,7 @@ class RedfishMetricsCollector:
 
         logging.debug("Target %s: Using URL %s", self.target, url)
         try:
-            req = self._session.get(url, stream=True, timeout=self._timeout)
+            req = self._session.get(url, timeout=self._timeout)
             req.raise_for_status()
 
         except requests.exceptions.HTTPError as err:
@@ -291,6 +291,8 @@ class RedfishMetricsCollector:
                 )
                 self._last_http_code = 444
                 return server_response
+            finally:
+                req.close()
 
             # req will evaluate to True if the status code was between 200 and 400
             # and False otherwise.

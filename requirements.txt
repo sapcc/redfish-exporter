@@ -1,6 +1,0 @@
-requests
-prometheus-client
-falcon
-argparse
-pyyaml
-pyOpenSSL

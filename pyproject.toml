@@ -1,0 +1,18 @@
+[project]
+name = "redfish-exporter"
+version = "0.0.1"
+description = "Exporter for Prometheus using the Redfish protocol for server monitoring"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+
+dependencies = [
+    "falcon>=4.0.0",
+    "prometheus-client>=0.22.0",
+    "pyopenssl>=25.0.0",
+    "pyyaml>=6.0.3",
+    "requests>=2.33.0",
+]
+
+[project.scripts]
+redfish-exporter = "redfish_exporter.main:main"

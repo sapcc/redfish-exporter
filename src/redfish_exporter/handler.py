@@ -12,7 +12,7 @@ import falcon
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
 from prometheus_client.exposition import generate_latest
 
-from collector import RedfishMetricsCollector
+from .collector import RedfishMetricsCollector
 
 # pylint: disable=no-member
 

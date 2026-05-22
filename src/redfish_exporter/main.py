@@ -13,8 +13,8 @@ import yaml
 
 import falcon
 
-from handler import MetricsHandler
-from handler import WelcomePage
+from .handler import MetricsHandler
+from .handler import WelcomePage
 
 class _SilentHandler(WSGIRequestHandler):
     """WSGI handler that does not log requests."""
@@ -108,8 +108,7 @@ def get_args():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
-
+def main():
     call_args = get_args()
 
     warnings.filterwarnings("ignore")
@@ -127,3 +126,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
         falcon_app(configuration)
+
+if __name__ == "__main__":
+    main()
+

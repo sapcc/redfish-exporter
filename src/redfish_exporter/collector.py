@@ -7,12 +7,12 @@ import re
 import requests
 
 from prometheus_client.core import GaugeMetricFamily
-from collectors.performance_collector import PerformanceCollector
-from collectors.bios_collector import BiosCollector
-from collectors.firmware_collector import FirmwareCollector
-from collectors.health_collector import HealthCollector
-from collectors.certificate_collector import CertificateCollector
-from collectors.sensors_collector import SensorsCollector
+from .collectors.performance_collector import PerformanceCollector
+from .collectors.bios_collector import BiosCollector
+from .collectors.firmware_collector import FirmwareCollector
+from .collectors.health_collector import HealthCollector
+from .collectors.certificate_collector import CertificateCollector
+from .collectors.sensors_collector import SensorsCollector
 
 class RedfishMetricsCollector:
     """Class for collecting Redfish metrics."""

@@ -88,7 +88,7 @@ class HealthCollector():
                 current_labels
             )
 
-            for disk in controller_data["Drives"]:
+            for disk in controller_data.get("Drives", []):
                 disk_data = self.col.connect_server(disk["@odata.id"])
                 if not disk_data:
                     continue

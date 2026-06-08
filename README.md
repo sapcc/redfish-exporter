@@ -5,24 +5,38 @@ The hostname of the server has to be passed as **target parameter** in the http 
 
 It has been tested with the following server models:
 
-Cisco UCS C480M5, working properly since BMC FW 4.1(1d)  
-Cisco UCS C240M4  
-Cisco UCS C240M5  
-Cisco UCS C220M4  
-Cisco UCS C220M5
+| Vendor | Model | Notes |
+|--------|-------|-------|
+| Cisco | UCS C220M4 | |
+| Cisco | UCS C220M5 | |
+| Cisco | UCS C240M4 | |
+| Cisco | UCS C240M5 | |
+| Cisco | UCS C480M5 | Working properly since BMC FW 4.1(1d) |
+| Dell | PowerEdge R640 | |
+| Dell | PowerEdge R660 | |
+| Dell | PowerEdge R730 | |
+| Dell | PowerEdge R740 | |
+| Dell | PowerEdge R740xd | |
+| Dell | PowerEdge R760 | |
+| Dell | PowerEdge R760xa | |
+| Dell | PowerEdge R7615 | |
+| Dell | PowerEdge R840 | |
+| Dell | PowerEdge R860 | |
+| HPE | Compute Scale-up Server 3200 | |
+| HPE | ProLiant DL320 Gen11 | |
+| HPE | ProLiant DL345 Gen11 | |
+| HPE | ProLiant DL360 Gen10 | |
+| HPE | ProLiant DL380 Gen11 | |
+| HPE | ProLiant DL560 Gen10 | |
+| HPE | ProLiant DL560 Gen11 | |
+| Lenovo | ThinkSystem SR650 | |
+| Lenovo | ThinkSystem SR650 V3 | |
+| Lenovo | ThinkSystem SR655 V3 | |
+| Lenovo | ThinkSystem SR675 V3 | |
+| Lenovo | ThinkSystem SR850 V3 | |
+| Lenovo | ThinkSystem SR950 V3 | |
 
-Cisco BMC FW below 4.x has its flaws regarding redfish API. Hence, I recommend updating at least to 4.0(1c).
-
-Dell PowerEdge R640  
-Dell PowerEdge R730  
-Dell PowerEdge R740  
-Dell PowerEdge R640  
-Dell PowerEdge R840
-
-Lenovo ThinkSystem SR950
-
-HPE DL360 Gen10   
-HPE DL560 Gen10
+> **Note:** Cisco BMC FW below 4.x has known issues with the Redfish API. Updating to at least 4.0(1c) is recommended.
 
 ## Example Call
 
@@ -117,6 +131,8 @@ job: 'redfish-myjob'
 ```
 
 ## Exported Metrics
+
+For a full reference of all metrics, their labels, value encodings, and the Redfish API endpoints they are sourced from, see [docs/redfish-metrics-reference.md](docs/redfish-metrics-reference.md).
 
 All metrics returned by the redfish exporter are gauges, except energy measurements from sensors.
 

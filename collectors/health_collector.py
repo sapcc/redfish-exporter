@@ -89,7 +89,8 @@ class HealthCollector():
             )
 
             for disk in controller_data["Drives"]:
-                disk_data = self.col.connect_server(disk["@odata.id"])
+                disk_uri = disk["@odata.id"]
+                disk_data = self.col.connect_server(disk_uri)
                 if not disk_data:
                     continue
 
@@ -98,7 +99,7 @@ class HealthCollector():
                     "Disk",
                     disk_data.get("Name", "unknown")
                 )
-                current_labels = self.get_disk_labels(disk_data)
+                current_labels = self.get_disk_labels(disk_data, disk_uri)
                 self.add_metric_sample(
                     "redfish_health",
                     {"Health": disk_status},
@@ -165,7 +166,7 @@ class HealthCollector():
         labels.update(self.col.labels)
         return labels
 
-    def get_disk_labels(self, disk_data):
+    def get_disk_labels(self, disk_data, disk_uri=None):
         """Generate labels for Disk."""
         disk_attributes = {
             "Name": "device_name",
@@ -179,6 +180,11 @@ class HealthCollector():
         for disk_attribute, label_name in disk_attributes.items():
             if disk_attribute in disk_data:
                 labels[label_name] = str(disk_data[disk_attribute])
+        if disk_uri:
+            # Extract a unique identifier from the URI (e.g., last segment)
+            # This helps differentiate when the same disk appears multiple times
+            disk_id = disk_uri.rstrip('/').split('/')[-1]
+            labels["device_id"] = disk_id
         labels.update(self.col.labels)
         return labels
 
@@ -217,12 +223,19 @@ class HealthCollector():
         for psu in power_supplies:
             psu_name = psu["Name"] if "Name" in psu and psu["Name"] is not None else "unknown"
             psu_model = psu["Model"] if "Model" in psu and psu["Model"] is not None else "unknown"
+            
+            # Extract unique identifier from MemberId or @odata.id
+            psu_id = psu.get("MemberId")
+            if not psu_id and "@odata.id" in psu:
+                psu_id = psu["@odata.id"].rstrip('/').split('/')[-1]
 
             current_labels = {
                 "device_type": "powersupply",
                 "device_name": psu_name,
                 "device_model": psu_model
             }
+            if psu_id:
+                current_labels["device_id"] = str(psu_id)
             current_labels.update(self.col.labels)
             psu_health = self.extract_health_status(psu, "PSU", psu_name)
             self.add_metric_sample(

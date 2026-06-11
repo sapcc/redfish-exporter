@@ -149,6 +149,13 @@ class RedfishMetricsCollector:
             )
             result.raise_for_status()
 
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout) as err:
+            logging.warning(
+                "Target %s: A timeout occured while getting an auth token from %s: %s",
+                self.target, self.host, err
+            )
+            self._basic_auth = True
+
         except requests.exceptions.ConnectionError:
             logging.warning(
                 "Target %s: Failed to get an auth token from server %s. Retrying ...",
@@ -160,7 +167,9 @@ class RedfishMetricsCollector:
                 )
                 result.raise_for_status()
 
-            except requests.exceptions.ConnectionError as e:
+            except (requests.exceptions.ConnectionError,
+                    requests.exceptions.ConnectTimeout,
+                    requests.exceptions.ReadTimeout) as e:
                 logging.error(
                     "Target %s: Error getting an auth token from server %s: %s",
                     self.target, self.host, e
@@ -168,16 +177,6 @@ class RedfishMetricsCollector:
                 self._basic_auth = True
 
         except requests.exceptions.HTTPError as err:
-            logging.warning(
-                "Target %s: No session received from server %s: %s",
-                self.target, self.host, err
-            )
-            logging.warning("Target %s: Switching to basic authentication.",
-                    self.target
-            )
-            self._basic_auth = True
-
-        except requests.exceptions.ReadTimeout as err:
             logging.warning(
                 "Target %s: No session received from server %s: %s",
                 self.target, self.host, err

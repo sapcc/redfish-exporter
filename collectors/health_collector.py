@@ -51,6 +51,8 @@ class HealthCollector():
                 "cpu_model": processor_data.get("Model", "unknown"),
                 "cpu_cores": str(processor_data.get("TotalCores", "unknown")),
                 "cpu_threads": str(processor_data.get("TotalThreads", "unknown")),
+                "id": processor_data.get("Id") or "unknown",
+                "serial": processor_data.get("SerialNumber") or "n/a",
             }
             current_labels.update(self.col.labels)
 
@@ -161,6 +163,8 @@ class HealthCollector():
             "device_name": controller_name,
             "device_manufacturer": controller_details.get("Manufacturer", "unknown"),
             "controller_model": controller_details.get("Model", "unknown"),
+            "id": controller_details.get("Id") or "unknown",
+            "serial": controller_details.get("SerialNumber") or "n/a",
         }
         labels.update(self.col.labels)
         return labels
@@ -175,7 +179,11 @@ class HealthCollector():
             "CapacityBytes": "disk_capacity",
             "Protocol": "disk_protocol",
         }
-        labels = {"device_type": "disk"}
+        labels = {
+            "device_type": "disk",
+            "id": disk_data.get("Id") or "unknown",
+            "serial": disk_data.get("SerialNumber") or "n/a",
+        }
         for disk_attribute, label_name in disk_attributes.items():
             if disk_attribute in disk_data:
                 labels[label_name] = str(disk_data[disk_attribute])
@@ -191,7 +199,9 @@ class HealthCollector():
 
         current_labels = {
             "device_type": "chassis",
-            "device_name": chassis_data["Name"]
+            "device_name": chassis_data["Name"],
+            "id": chassis_data.get("Id") or "unknown",
+            "serial": chassis_data.get("SerialNumber") or "n/a",
         }
         current_labels.update(self.col.labels)
         chassis_health = self.extract_health_status(chassis_data, "Chassis", chassis_data["Name"])
@@ -221,7 +231,9 @@ class HealthCollector():
             current_labels = {
                 "device_type": "powersupply",
                 "device_name": psu_name,
-                "device_model": psu_model
+                "device_model": psu_model,
+                "id": psu.get("MemberId") or psu.get("Id") or "unknown",
+                "serial": psu.get("SerialNumber") or "n/a",
             }
             current_labels.update(self.col.labels)
             psu_health = self.extract_health_status(psu, "PSU", psu_name)
@@ -251,7 +263,9 @@ class HealthCollector():
             fan_name = fan.get("Name", "unknown")
             current_labels = {
                 "device_type": "fan",
-                "device_name": fan_name
+                "device_name": fan_name,
+                "id": fan.get("MemberId") or fan.get("Id") or "unknown",
+                "serial": fan.get("SerialNumber") or "n/a",
             }
             current_labels.update(self.col.labels)
             fan_health = self.extract_health_status(fan, "Fan", fan_name)
@@ -309,7 +323,9 @@ class HealthCollector():
             "dimm_capacity": str(dimm_info["CapacityMiB"]),
             "dimm_speed": str(dimm_info.get("OperatingSpeedMhz", "unknown")),
             "dimm_type": dimm_info["MemoryDeviceType"],
-            "device_manufacturer": dimm_info.get("Manufacturer", "N/A")
+            "device_manufacturer": dimm_info.get("Manufacturer", "N/A"),
+            "id": dimm_info.get("Id") or "unknown",
+            "serial": dimm_info.get("SerialNumber") or "n/a",
         }
 
         if "Oem" in dimm_info and "Hpe" in dimm_info["Oem"]:
@@ -376,7 +392,7 @@ class HealthCollector():
         """Collect the health data."""
         logging.info("Target %s: Collecting health data ...", self.col.target)
 
-        current_labels = {"device_type": "system", "device_name": "summary"}
+        current_labels = {"device_type": "system", "device_name": "summary", "id": "summary", "serial": "n/a"}
         current_labels.update(self.col.labels)
         self.add_metric_sample(
             "redfish_health",

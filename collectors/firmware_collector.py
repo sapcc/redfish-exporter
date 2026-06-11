@@ -51,16 +51,20 @@ class FirmwareCollector:
                     continue
 
                 item_name = fw_item['Name'].split(",", 1)[0]
-                current_labels = {"item_name": item_name}
+                # Id is unique within the FirmwareInventory collection. Required to prevent
+                # duplicate-labelset collisions when several components share a name
+                # (e.g. multiple PSUs, NICs of the same model).
+                current_labels = {
+                    "item_name": item_name,
+                    "item_id": fw_item.get("Id") or "unknown",
+                }
 
                 if self.col.manufacturer == 'Lenovo':
                     # Lenovo has always Firmware: in front of the names, let's remove it
                     item_name = fw_item['Name'].replace('Firmware:','')
                     current_labels.update({"item_name": item_name})
-                    # we need an additional label to distinguish the metrics because
-                    # the device ID is not in the name in case of Lenovo
-                    if "Id" in fw_item:
-                        current_labels.update({"item_id": fw_item['Id']})
+
+                current_labels.update({"serial": fw_item.get('SerialNumber') or 'n/a'})
 
                 if "Manufacturer" in fw_item:
                     current_labels.update({"item_manufacturer": fw_item['Manufacturer']})

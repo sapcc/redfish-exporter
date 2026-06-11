@@ -124,7 +124,10 @@ class PerformanceCollector:
             power_supplies = power_supplies['Members']
 
         for power_supply in power_supplies:
-            no_psu_metrics = self.get_power_supply_metrics(power_supply)
+            psu_failed = self.get_power_supply_metrics(power_supply)
+            # Track success across all PSUs: fallback to legacy path only when NO PSU produced metrics.
+            if not psu_failed:
+                no_psu_metrics = False
 
         return no_psu_metrics
 
@@ -137,7 +140,7 @@ class PerformanceCollector:
 
         power_supply_labels = {}
         power_supply_data = self.col.connect_server(power_supply['@odata.id'])
-        
+
         # Check if power_supply data was received (connect_server returns "" on error)
         if not power_supply_data:
             logging.warning(
@@ -146,48 +149,63 @@ class PerformanceCollector:
             )
             return no_psu_metrics
 
+        # NOTE: We intentionally do NOT skip PSUs reporting Status.State == "Absent" here.
+        # HPE iLO 6 marks every populated PSU bay as "Absent" on the modern
+        # /PowerSubsystem/PowerSupplies/{id} resource even when the PSU is physically
+        # present and operational. Filtering on Absent dropped all bays and forced the
+        # legacy fallback path. We let the per-metric loop below decide whether each
+        # individual reading is reportable instead.
+
         if 'Metrics' not in power_supply_data:
-            logging.warning(
-                "Target %s, Host %s, Model %s: No power supply metrics url found for %s.",
+            logging.debug(
+                "Target %s: No Metrics URL on PSU %s — emitting parent-resource "
+                "values only.",
                 self.col.target,
-                self.col.host,
-                self.col.model,
-                power_supply_data.get('Name', 'unknown')
+                power_supply_data.get('Id', 'unknown')
             )
-            return no_psu_metrics
+            power_supply_metrics = {}
+        else:
+            power_supply_metrics_url = power_supply_data['Metrics']['@odata.id']
+            fetched = self.col.connect_server(power_supply_metrics_url)
+            power_supply_metrics = fetched if fetched else {}
 
         for field in fields:
             field_value = power_supply_data.get(field, 'unknown')
             # Ensure None values are replaced with 'unknown' for Prometheus label compatibility
             power_supply_labels.update({field: field_value if field_value is not None else 'unknown'})
 
+        # id is the only label Redfish guarantees to be unique per PSU collection;
+        # serial may be absent on some vendors. Both are needed to keep series distinct.
+        power_supply_labels["id"] = power_supply_data.get('Id') or 'unknown'
+        power_supply_labels["serial"] = power_supply_data.get('SerialNumber') or 'n/a'
+
         power_supply_labels.update(self.col.labels)
 
-        power_supply_metrics_url = power_supply_data['Metrics']['@odata.id']
-        power_supply_metrics = self.col.connect_server(power_supply_metrics_url)
-        
-        # Check if power_supply metrics data was received (connect_server returns "" on error)
-        if not power_supply_metrics:
-            logging.warning(
-                "Target %s: No power supply metrics data received.",
-                self.col.target
-            )
-            return no_psu_metrics
-
-        no_psu_metrics = False
         for metric in metrics:
             current_labels = {'type': metric}
             current_labels.update(power_supply_labels)
-            if metric not in power_supply_metrics:
+
+            # Prefer the dedicated Metrics sub-resource. If it doesn't expose this metric,
+            # fall back to the same-named field on the parent PowerSupply resource
+            # (some vendors put readings on the parent rather than under Metrics).
+            # A real value of 0 is a valid reading (idle PSU) and is NOT treated as missing.
+            reading = None
+            if metric in power_supply_metrics:
+                metric_entry = power_supply_metrics[metric]
+                if isinstance(metric_entry, dict):
+                    reading = metric_entry.get('Reading')
+                else:
+                    reading = metric_entry
+            if reading is None and metric in power_supply_data:
+                reading = power_supply_data.get(metric)
+
+            if reading is None:
+                # Neither resource reported this measurement for this PSU.
                 continue
 
-            power_metric_value = (
-                math.nan
-                if power_supply_metrics[metric]['Reading'] is None
-                else power_supply_metrics[metric]['Reading']
-            )
+            no_psu_metrics = False
             self.power_metrics.add_sample(
-                "redfish_power", value=power_metric_value, labels=current_labels
+                "redfish_power", value=reading, labels=current_labels
             )
 
         return no_psu_metrics
@@ -218,15 +236,19 @@ class PerformanceCollector:
 
         for psu in power_data['PowerSupplies']:
             psu_name = (
-                'unknown' 
+                'unknown'
                 if psu.get('Name', 'unknown') is None
                 else psu.get('Name', 'unknown')
             )
             psu_model = (
-                'unknown' 
+                'unknown'
                 if psu.get('Model', 'unknown') is None
                 else psu.get('Model', 'unknown')
             )
+            # MemberId is the unique-within-array key on the legacy Power resource.
+            # Falling back to Id covers vendors that publish it instead.
+            psu_id = psu.get('MemberId') or psu.get('Id') or 'unknown'
+            psu_serial = psu.get('SerialNumber') or 'n/a'
 
             for metric in metrics:
                 if metric not in psu:
@@ -242,6 +264,8 @@ class PerformanceCollector:
                 current_labels = {
                     'device_name': psu_name,
                     'device_model': psu_model,
+                    'id': psu_id,
+                    'serial': psu_serial,
                     'type': metric
                 }
                 current_labels.update(self.col.labels)

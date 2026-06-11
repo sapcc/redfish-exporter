@@ -70,6 +70,13 @@ Retrieves sensor-related metrics (e.g. energy, voltage, current, temperature, ..
 curl "http://localhost:9220/sensors?target=server1.example.com&job=redfish-myjob"
 ```
 
+### `/bios`
+Retrieves BIOS settings as Prometheus metrics, including a flag indicating whether changes are pending a reboot. Each BIOS attribute is exported as its own metric (`redfish_bios_<attribute>`) — see the metrics reference for details.
+
+```bash
+curl "http://localhost:9220/bios?target=server1.example.com&job=redfish-myjob"
+```
+
 **Notes**:
 - Replace `server1.example.com` with the hostname or IP address of your Redfish server.
 - Replace `redfish-myjob` with the name of your job (used to map credentials).

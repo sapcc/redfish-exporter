@@ -12,14 +12,34 @@ from prometheus_client.core import GaugeMetricFamily
 
 def camel_to_snake(name):
     """
-    Convert camelCase or PascalCase to snake_case.
-    Examples: AcPwrRcvry -> ac_pwr_rcvry, BootMode -> boot_mode
+    Convert a Redfish BIOS attribute name to a Prometheus-compatible snake_case
+    metric suffix.
+
+    Handles vendor noise such as parentheses, slashes, dashes, hyphens, and
+    trailing colons (Fujitsu publishes attributes like ``ConsoleRedirection:``,
+    ``PCIe10-bitTagSupport``, ``(CPU1-RP1VMD)Bus20``).
+
+    The output is guaranteed to:
+    - contain only ``[a-z0-9_]`` characters
+    - have no leading or trailing underscores
+    - have no consecutive underscores
+
+    Examples:
+        AcPwrRcvry              -> ac_pwr_rcvry
+        BootMode                -> boot_mode
+        ConsoleRedirection:     -> console_redirection
+        PCIe10-bitTagSupport    -> pcie10_bit_tag_support
+        (CPU1-RP1VMD)Bus20      -> cpu1_rp1_vmd_bus20
+        TME-MT/TDXkeysplit      -> tme_mt_tdxkeysplit
     """
     # Insert underscore before uppercase letters that follow lowercase letters or numbers
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    s1 = re.sub(r'(.)([A-Z][a-z]+)', r'\1_\2', name)
     # Insert underscore before uppercase letters that follow lowercase letters
-    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
-    return s2.lower()
+    s2 = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s1)
+    # Replace any remaining non-alphanumeric character with an underscore,
+    # collapse runs of underscores, and trim.
+    s3 = re.sub(r'[^a-zA-Z0-9]+', '_', s2)
+    return s3.strip('_').lower()
 
 class BiosCollector:
     """
@@ -99,40 +119,50 @@ class BiosCollector:
                     # Seen on Lenovo ThinkSystem SR675 V3
                     if attr_name.startswith('Broadcom'):
                         continue
-                    
-                    # Create metric name from attribute name (convert to snake_case)
-                    metric_name = f"redfish_bios_{camel_to_snake(attr_name)}"
-                    
-                    # Create metric if it doesn't exist yet
-                    if metric_name not in self.bios_metrics:
-                        self.bios_metrics[metric_name] = GaugeMetricFamily(
-                            metric_name,
-                            f"Redfish BIOS Setting: {attr_name}",
-                            labels=self.col.labels,
-                        )
-                    
+
+                    # Resolve the value first. Sequence/object-typed BIOS
+                    # attributes (e.g. Fujitsu BootSources, PersistentBootConfigOrder)
+                    # are skipped — emitting them would create an empty metric
+                    # family with HELP/TYPE lines and zero samples.
                     current_labels = self.col.labels.copy()
                     current_labels["setting_name"] = attr_name
-                    
-                    # Handle different value types
-                    if isinstance(attr_value, (int, float)):
-                        numeric_value = float(attr_value)
-                    elif isinstance(attr_value, bool):
+
+                    # bool first: Python `bool` is a subclass of `int`, so the
+                    # int/float branch would otherwise swallow True/False.
+                    if isinstance(attr_value, bool):
                         numeric_value = 1 if attr_value else 0
+                    elif isinstance(attr_value, (int, float)):
+                        numeric_value = float(attr_value)
                     elif isinstance(attr_value, str):
                         # Check if string is a boolean-like value
-                        if attr_value.lower() == 'enabled':
+                        lowered = attr_value.strip().lower()
+                        if lowered == 'enabled':
                             numeric_value = 1
-                        elif attr_value.lower() == 'disabled':
+                        elif lowered == 'disabled':
                             numeric_value = 0
                         else:
                             # For other string values, store as info metric with value 1
                             current_labels["setting_value"] = str(attr_value)
                             numeric_value = 1
                     else:
-                        # Skip unsupported types
+                        # Skip unsupported types (lists, dicts, None, ...) entirely.
                         continue
-                    
+
+                    # Build the metric name only after we know we have a sample
+                    # to add. camel_to_snake guarantees Prometheus-safe output.
+                    metric_name = f"redfish_bios_{camel_to_snake(attr_name)}"
+                    if not metric_name or metric_name == "redfish_bios_":
+                        # Defensive: an attribute name like "::" would normalise
+                        # to nothing. Drop it rather than emit an invalid metric.
+                        continue
+
+                    if metric_name not in self.bios_metrics:
+                        self.bios_metrics[metric_name] = GaugeMetricFamily(
+                            metric_name,
+                            f"Redfish BIOS Setting: {attr_name}",
+                            labels=self.col.labels,
+                        )
+
                     self.bios_metrics[metric_name].add_sample(
                         metric_name,
                         value=numeric_value,

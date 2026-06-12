@@ -71,6 +71,14 @@ class FirmwareCollector:
 
                 if "Version" in fw_item:
                     version = fw_item['Version']
+                    # Some BMCs (Fujitsu iRMC, HPE iLO) pad version strings with
+                    # trailing whitespace; trim it so equivalent versions don't
+                    # produce different time series across vendors.
+                    if isinstance(version, str):
+                        version = version.strip()
+                    # An empty string is intentionally kept (rather than dropped)
+                    # so vendor reporting gaps are visible in the metrics — the
+                    # series will appear with version="" and can be alerted on.
                     if version != "N/A" and version is not None:
                         current_labels.update({"version": version})
                         current_labels.update(self.col.labels)

@@ -357,6 +357,15 @@ Power reading for a component. The `type` label identifies the specific measurem
 | `RequestedWatts` | Requested power allocation |
 | `AllocatedWatts` | Currently allocated power |
 
+**Chassis-level reading** (from the legacy `Chassis/{id}/Power` resource — always read when available):
+
+| Label | Description |
+|---|---|
+| `type` | `PowerConsumedWatts` |
+| `id` | `MemberId` (or `Id`) of the `PowerControl[]` entry — usually `0` for a single chassis |
+
+This series is the chassis-wide instantaneous power consumption. On HPE iLO 6 it is the only reliably non-stale power figure available because the modern `PowerSupplies/{id}/Metrics` readings are often frozen at `0.0` even on populated and operational PSUs.
+
 **Per-PSU readings** (from `PowerSupplies/{id}/Metrics`):
 
 | Label | Description |
@@ -369,8 +378,9 @@ Power reading for a component. The `type` label identifies the specific measurem
 | `serial` | PSU serial number; `n/a` if not provided |
 
 > **Notes:**
-> - Per-metric readings are taken from the `PowerSupplies/{id}/Metrics` sub-resource when present; otherwise the exporter falls back to the same field on the parent `PowerSupplies/{id}` resource. A real value of `0` is a valid idle reading and is reported as such; only metrics that are absent on **both** resources are omitted.
-> - PSU bays reporting `Status.State = "Absent"` are **not** filtered out. Some vendor BMCs (notably HPE iLO 6) mark every bay as `Absent` on the modern `PowerSubsystem` resource even when the PSU is physically present. Disambiguation is handled by the `id` label so duplicate-labelset collisions are avoided regardless.
+> - Per-metric readings are taken from the `PowerSupplies/{id}/Metrics` sub-resource when present; otherwise the exporter falls back to the same field on the parent `PowerSupplies/{id}` resource. Only metrics that exist on at least one of the two resources are emitted.
+> - **PSUs whose every reading is zero or missing are silently dropped** — they contribute no useful information and would only clutter dashboards. Empty bays and BMC-broken bays both fall under this rule. The chassis-level `PowerConsumedWatts` aggregate above remains available regardless.
+> - PSU bays reporting `Status.State = "Absent"` are **not** filtered on that field alone. Some vendor BMCs (notably HPE iLO 6) mark every bay as `Absent` on the modern `PowerSubsystem` resource even when the PSU is physically present and operational. The all-zero-readings rule above handles both real and falsely-reported absence in a single check.
 > - When the modern `PowerSubsystem` resource yields no readings at all, the exporter falls back to the deprecated `Chassis/{id}/Power` resource (see *Legacy Power path* below).
 
 #### Legacy Power path (deprecated, fallback only)
@@ -384,6 +394,21 @@ Power reading for a component. The `type` label identifies the specific measurem
 | `device_model` | PSU model |
 | `id` | Redfish `MemberId` (or `Id` if exposed) |
 | `serial` | PSU serial number; `n/a` if not provided |
+
+#### Vendor coverage matrix for `redfish_power`
+
+Different BMC firmware families populate the Redfish power resources very differently. The exporter publishes whatever each one actually exposes — empty/zero readings are dropped rather than reported as misleading zeros. The table below captures the patterns observed in production:
+
+| Vendor / firmware | Subsystem aggregate (`CapacityWatts`, `RequestedWatts`, `AllocatedWatts`) | Per-PSU live readings (`InputPowerWatts`, `OutputPowerWatts`) | Per-PSU `PowerCapacityWatts` | Chassis-level `PowerConsumedWatts` |
+|---|---|---|---|---|
+| **Dell** iDRAC 9 (PowerEdge R860 and similar) | All three | Real values per PSU | Real value per PSU | One series per chassis |
+| **Lenovo** XCC (ThinkSystem SR650 V3 and similar) | All three | Not exposed on the modern resource | Real value per PSU (static) | Multiple series — one per `PowerControl[]` domain (often 3) |
+| **HPE** iLO 6 (ProLiant Gen11) | `CapacityWatts` only | Reported as `0.0` (firmware bug) — dropped | Reported as `0` — dropped | One series per chassis (the only reliable HPE Gen11 wattage) |
+| **HPE** iLO 5 (ProLiant Gen10) | Not present | — | — | Falls back to *Legacy Power path* per-PSU readings |
+| **Cisco** UCS (C220/C240 series, BMC FW ≥ 4.x) | Not exposed | Not exposed on the modern resource | — | Falls back to *Legacy Power path* per-PSU readings |
+| **Fujitsu** iRMC (PRIMERGY RX2540 M8 and similar) | Not present | Not exposed at standard Redfish paths | Real value per PSU (via legacy path) | Not exposed at standard Redfish paths |
+
+> Dropped means: the silent-PSU rule above suppresses series whose every reading is zero or missing, so HPE Gen11 emits no per-PSU `redfish_power` series and instead surfaces consumption only through the chassis-level aggregate. This is intentional — it keeps dashboards uncluttered while preserving the only number the BMC reports honestly.
 
 ---
 
@@ -408,6 +433,18 @@ The `type` label reflects the Redfish key name from `TemperatureSummaryCelsius`,
 | `Internal` | Internal chassis temperature |
 
 > **Note:** Available keys depend on the server model and BMC firmware version.
+
+#### Legacy Thermal path (fallback for vendors without `ThermalSubsystem`)
+
+When the modern `ThermalSubsystem` resource is missing or yields no readings, the exporter falls back to the deprecated `Chassis/{id}/Thermal` resource and emits one series per entry of its `Temperatures[]` array. This path is used by vendors such as Fujitsu iRMC and older HPE iLO 5 firmware.
+
+| Label | Description |
+|---|---|
+| `type` | Sensor `Name` from the array entry (e.g. `CPU1`, `MB_Outlet`, `PSU1_Inlet`) |
+| `id` | Redfish `MemberId` (or `Id`) of the array entry |
+| `host`, `server_*` | Standard host/server labels |
+
+Sensors whose `Status.State == "Absent"` are skipped, and entries without a `ReadingCelsius` value are not emitted. The number of emitted series therefore varies widely across vendors: Fujitsu PRIMERGY publishes ~20 active sensors per server (CPU dies, DIMM banks, PSU intake, voltage rails), while a comparable HPE Gen10 typically publishes a handful.
 
 ---
 

@@ -82,7 +82,7 @@ class HealthCollector():
                 controller_details, "Controller", controller_name
             )
 
-            current_labels = self.get_controller_labels(controller_details, controller_name)
+            current_labels = self.get_controller_labels(controller_details, controller_name, controller_data)
             self.add_metric_sample(
                 "redfish_health",
                 {"Health": controller_status},
@@ -156,15 +156,30 @@ class HealthCollector():
 
         return self.col.status[health.lower()]
 
-    def get_controller_labels(self, controller_details, controller_name):
-        """Generate labels for Controller."""
+    def get_controller_labels(self, controller_details, controller_name, controller_data=None):
+        """Generate labels for Controller.
+
+        ``controller_details`` is the StorageControllers[0] sub-object (which on
+        most vendors carries Id/SerialNumber). ``controller_data`` is the parent
+        Storage resource — Fujitsu iRMC populates Id only there, so we fall back
+        to it for the disambiguator.
+        """
+        # Id and SerialNumber: prefer the embedded controller entry (Dell/HPE/Lenovo
+        # idiom), fall back to the parent Storage resource (Fujitsu idiom).
+        controller_id = controller_details.get("Id")
+        if not controller_id and controller_data:
+            controller_id = controller_data.get("Id")
+        controller_serial = controller_details.get("SerialNumber")
+        if not controller_serial and controller_data:
+            controller_serial = controller_data.get("SerialNumber")
+
         labels = {
             "device_type": "storage",
             "device_name": controller_name,
             "device_manufacturer": controller_details.get("Manufacturer", "unknown"),
             "controller_model": controller_details.get("Model", "unknown"),
-            "id": controller_details.get("Id") or "unknown",
-            "serial": controller_details.get("SerialNumber") or "n/a",
+            "id": controller_id or "unknown",
+            "serial": controller_serial or "n/a",
         }
         labels.update(self.col.labels)
         return labels
@@ -179,14 +194,25 @@ class HealthCollector():
             "CapacityBytes": "disk_capacity",
             "Protocol": "disk_protocol",
         }
+        serial = disk_data.get("SerialNumber")
+        if isinstance(serial, str):
+            serial = serial.strip()
         labels = {
             "device_type": "disk",
             "id": disk_data.get("Id") or "unknown",
-            "serial": disk_data.get("SerialNumber") or "n/a",
+            "serial": serial or "n/a",
         }
         for disk_attribute, label_name in disk_attributes.items():
-            if disk_attribute in disk_data:
-                labels[label_name] = str(disk_data[disk_attribute])
+            value = disk_data.get(disk_attribute)
+            # Skip JSON-null values; emitting str(None) → "None" is misleading.
+            if value is None:
+                continue
+            # Trim trailing whitespace from string fields (Fujitsu/HPE habit).
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    continue
+            labels[label_name] = str(value)
         labels.update(self.col.labels)
         return labels
 
@@ -227,13 +253,21 @@ class HealthCollector():
         for psu in power_supplies:
             psu_name = psu["Name"] if "Name" in psu and psu["Name"] is not None else "unknown"
             psu_model = psu["Model"] if "Model" in psu and psu["Model"] is not None else "unknown"
+            # Trim trailing whitespace some BMCs (Fujitsu, HPE) embed in model strings.
+            if isinstance(psu_name, str):
+                psu_name = psu_name.strip() or "unknown"
+            if isinstance(psu_model, str):
+                psu_model = psu_model.strip() or "unknown"
+            psu_serial = psu.get("SerialNumber")
+            if isinstance(psu_serial, str):
+                psu_serial = psu_serial.strip()
 
             current_labels = {
                 "device_type": "powersupply",
                 "device_name": psu_name,
                 "device_model": psu_model,
                 "id": psu.get("MemberId") or psu.get("Id") or "unknown",
-                "serial": psu.get("SerialNumber") or "n/a",
+                "serial": psu_serial or "n/a",
             }
             current_labels.update(self.col.labels)
             psu_health = self.extract_health_status(psu, "PSU", psu_name)

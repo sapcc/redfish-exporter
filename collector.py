@@ -234,6 +234,7 @@ class RedfishMetricsCollector:
         self._session.verify = False
         self._session.headers.update({"charset": "utf-8"})
         self._session.headers.update({"content-type": "application/json"})
+        self._session.headers.update({"Accept": "application/json"})
 
         if noauth:
             logging.debug("Target %s: Using no auth", self.target)
@@ -554,7 +555,7 @@ class RedfishMetricsCollector:
             logging.debug("Target %s: Using URL %s", self.target, session_url)
 
             try:
-                response = requests.delete(
+                response = self._session.delete(
                     session_url, verify=False, timeout=self._timeout, headers=headers
                 )
                 response.close()

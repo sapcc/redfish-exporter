@@ -37,9 +37,23 @@ class PerformanceCollector:
         if self.col.urls['PowerSubsystem']:
             no_psu_metrics = self.get_power_subsystem_metrics()
 
-        # fall back to deprecated URL
-        if self.col.urls['Power'] and no_psu_metrics:
-            self.get_old_power_metrics()
+        # The legacy /Chassis/{id}/Power resource exposes a chassis-level
+        # PowerControl[] aggregate that several vendors (notably HPE iLO 6) keep
+        # populated with real-time data even when the modern PowerSubsystem
+        # readings are stale or zero. Read it once and pass it to both the
+        # chassis-aggregate reader and (if needed) the legacy per-PSU reader.
+        legacy_power_data = None
+        if self.col.urls['Power']:
+            legacy_power_data = self.col.connect_server(self.col.urls['Power'])
+            if legacy_power_data:
+                if self.get_chassis_power_control(legacy_power_data):
+                    no_psu_metrics = False
+
+        # fall back to deprecated per-PSU URL only if neither modern nor chassis
+        # aggregate produced anything usable.
+        if legacy_power_data and no_psu_metrics:
+            if self.get_old_power_metrics(legacy_power_data):
+                no_psu_metrics = False
 
         if no_psu_metrics:
             logging.warning(
@@ -48,6 +62,34 @@ class PerformanceCollector:
                 self.col.host,
                 self.col.model
             )
+
+    def get_chassis_power_control(self, power_data):
+        """Read the chassis-level PowerControl[] aggregate from a pre-fetched
+        legacy Power resource.
+
+        Returns True when at least one reading was emitted.
+        """
+        if not power_data or 'PowerControl' not in power_data:
+            return False
+
+        emitted = False
+        # PowerControl is an array — each entry typically represents one chassis
+        # or one power-domain. Disambiguate with MemberId/Id.
+        for entry in power_data['PowerControl']:
+            consumed = entry.get('PowerConsumedWatts')
+            if consumed is None:
+                continue
+            current_labels = {
+                'type': 'PowerConsumedWatts',
+                'id': entry.get('MemberId') or entry.get('Id') or '0',
+            }
+            current_labels.update(self.col.labels)
+            self.power_metrics.add_sample(
+                "redfish_power", value=consumed, labels=current_labels
+            )
+            emitted = True
+
+        return emitted
 
     def get_power_subsystem_metrics(self):
         '''Get the PowerSubsystem data from the Redfish API.'''
@@ -181,14 +223,12 @@ class PerformanceCollector:
 
         power_supply_labels.update(self.col.labels)
 
+        # Collect every reading first so we can decide whether the PSU is reporting
+        # any non-zero data. A PSU that reports only zeros is either an empty bay or
+        # a vendor-broken sensor (HPE iLO 6 publishes 0.0 on populated PSUs). Emitting
+        # those clutters dashboards without informing them, so we drop them.
+        readings = {}
         for metric in metrics:
-            current_labels = {'type': metric}
-            current_labels.update(power_supply_labels)
-
-            # Prefer the dedicated Metrics sub-resource. If it doesn't expose this metric,
-            # fall back to the same-named field on the parent PowerSupply resource
-            # (some vendors put readings on the parent rather than under Metrics).
-            # A real value of 0 is a valid reading (idle PSU) and is NOT treated as missing.
             reading = None
             if metric in power_supply_metrics:
                 metric_entry = power_supply_metrics[metric]
@@ -198,12 +238,21 @@ class PerformanceCollector:
                     reading = metric_entry
             if reading is None and metric in power_supply_data:
                 reading = power_supply_data.get(metric)
+            if reading is not None:
+                readings[metric] = reading
 
-            if reading is None:
-                # Neither resource reported this measurement for this PSU.
-                continue
+        if not any(value for value in readings.values()):
+            logging.debug(
+                "Target %s: PSU %s reports only zero/missing readings, skipping.",
+                self.col.target,
+                power_supply_labels["id"]
+            )
+            return no_psu_metrics
 
-            no_psu_metrics = False
+        no_psu_metrics = False
+        for metric, reading in readings.items():
+            current_labels = {'type': metric}
+            current_labels.update(power_supply_labels)
             self.power_metrics.add_sample(
                 "redfish_power", value=reading, labels=current_labels
             )
@@ -211,119 +260,170 @@ class PerformanceCollector:
         return no_psu_metrics
 
 
-    def get_old_power_metrics(self):
-        """Get the Power data from the Redfish API."""
-        logging.debug("Target %s: Fallback to deprecated Power URL.", self.col.target)
+    def get_old_power_metrics(self, power_data):
+        """Get the per-PSU readings from a pre-fetched legacy Power resource.
 
-        no_psu_metrics = True
+        Returns True when at least one reading was emitted.
+        """
+        logging.debug("Target %s: Reading deprecated Power URL.", self.col.target)
 
-        power_data = self.col.connect_server(self.col.urls['Power'])
-        
-        # Check if power_data was received and has PowerSupplies (connect_server returns "" on error)
         if not power_data or 'PowerSupplies' not in power_data:
             logging.warning(
-                "Target %s: No power data received or PowerSupplies not found.",
+                "Target %s: Legacy Power resource has no PowerSupplies array.",
                 self.col.target
             )
-            return no_psu_metrics
+            return False
 
+        # PowerCapacityWatts is included so vendors that publish only the
+        # nameplate (e.g. Lenovo XCC, Fujitsu iRMC) still produce some output.
+        # The silent-PSU rule below drops bays whose every reading is zero or
+        # missing so this doesn't reintroduce dashboard noise.
         metrics = [
             'PowerOutputWatts',
             'EfficiencyPercent',
             'PowerInputWatts',
-            'LineInputVoltage'
+            'LineInputVoltage',
+            'PowerCapacityWatts',
         ]
 
+        emitted = False
         for psu in power_data['PowerSupplies']:
-            psu_name = (
-                'unknown'
-                if psu.get('Name', 'unknown') is None
-                else psu.get('Name', 'unknown')
-            )
-            psu_model = (
-                'unknown'
-                if psu.get('Model', 'unknown') is None
-                else psu.get('Model', 'unknown')
-            )
+            # Skip absent slots up-front — they would otherwise hand us a
+            # capacity reading like 0 for an empty bay.
+            psu_state = psu.get('Status', {}).get('State') if isinstance(psu.get('Status'), dict) else None
+            if psu_state == 'Absent':
+                continue
+
+            psu_name = psu.get('Name') or 'unknown'
+            psu_model = psu.get('Model') or 'unknown'
             # MemberId is the unique-within-array key on the legacy Power resource.
             # Falling back to Id covers vendors that publish it instead.
             psu_id = psu.get('MemberId') or psu.get('Id') or 'unknown'
             psu_serial = psu.get('SerialNumber') or 'n/a'
 
-            for metric in metrics:
-                if metric not in psu:
-                    continue
+            # Collect first, then drop the PSU entirely if it has nothing useful
+            # to report. Same rule as the modern path.
+            readings = {
+                metric: psu.get(metric)
+                for metric in metrics
+                if psu.get(metric) is not None
+            }
+            if not any(value for value in readings.values()):
+                continue
 
-                no_psu_metrics = False
-                power_metric_value = (
-                    math.nan
-                    if psu[metric] is None
-                    else psu[metric]
-                )
-
+            for metric, value in readings.items():
                 current_labels = {
                     'device_name': psu_name,
                     'device_model': psu_model,
                     'id': psu_id,
                     'serial': psu_serial,
-                    'type': metric
+                    'type': metric,
                 }
                 current_labels.update(self.col.labels)
                 self.power_metrics.add_sample(
                     "redfish_power",
-                    value=power_metric_value,
+                    value=value,
                     labels=current_labels
                 )
+                emitted = True
 
-        return no_psu_metrics
+        return emitted
 
     def get_temp_metrics(self):
         """Get the Thermal data from the Redfish API."""
         logging.info("Target %s: Get the Thermal data.", self.col.target)
 
+        emitted = False
         if self.col.urls['ThermalSubsystem']:
-            thermal_subsystem = self.col.connect_server(self.col.urls['ThermalSubsystem'])
-            
-            # Check if thermal_subsystem data was received (connect_server returns "" on error)
-            if not thermal_subsystem:
-                logging.warning(
-                    "Target %s: No thermal subsystem data received, skipping temperature metrics.",
-                    self.col.target
-                )
-                return
-            
-            # Check if ThermalMetrics key exists
-            if 'ThermalMetrics' not in thermal_subsystem or '@odata.id' not in thermal_subsystem.get('ThermalMetrics', {}):
-                logging.warning(
-                    "Target %s: ThermalMetrics not found in thermal subsystem data.",
-                    self.col.target
-                )
-                return
-            
-            thermal_metrics_url = thermal_subsystem['ThermalMetrics']['@odata.id']
-            result = self.col.connect_server(thermal_metrics_url)
-            
-            # Check if thermal metrics data was received (connect_server returns "" on error)
-            if not result:
-                logging.warning(
-                    "Target %s: No thermal metrics data received.",
-                    self.col.target
-                )
-                return
-            
-            thermal_metrics = result.get('TemperatureSummaryCelsius', {})
+            emitted = self._get_temp_from_thermal_subsystem()
 
-            for metric in thermal_metrics:
-                current_labels = {'type': metric}
-                current_labels.update(self.col.labels)
-                thermal_metric_value = (
-                    math.nan
-                    if thermal_metrics[metric]['Reading'] is None
-                    else thermal_metrics[metric]['Reading']
-                )
-                self.temperature_metrics.add_sample(
-                    "redfish_temperature", value=thermal_metric_value, labels=current_labels
-                )
+        # Vendors that don't expose the modern ThermalSubsystem (e.g. Fujitsu iRMC,
+        # older HPE Gen10) keep their thermal data on the legacy /Chassis/{id}/Thermal
+        # resource. Read it whenever it is available so we don't lose temperature
+        # coverage on those platforms.
+        if not emitted and self.col.urls['Thermal']:
+            self._get_temp_from_legacy_thermal()
+
+    def _get_temp_from_thermal_subsystem(self):
+        """Read temperatures from the modern ThermalSubsystem resource. Returns True
+        if at least one reading was emitted."""
+        thermal_subsystem = self.col.connect_server(self.col.urls['ThermalSubsystem'])
+
+        # Check if thermal_subsystem data was received (connect_server returns "" on error)
+        if not thermal_subsystem:
+            logging.warning(
+                "Target %s: No thermal subsystem data received, skipping temperature metrics.",
+                self.col.target
+            )
+            return False
+
+        # Check if ThermalMetrics key exists
+        if 'ThermalMetrics' not in thermal_subsystem or '@odata.id' not in thermal_subsystem.get('ThermalMetrics', {}):
+            logging.warning(
+                "Target %s: ThermalMetrics not found in thermal subsystem data.",
+                self.col.target
+            )
+            return False
+
+        thermal_metrics_url = thermal_subsystem['ThermalMetrics']['@odata.id']
+        result = self.col.connect_server(thermal_metrics_url)
+
+        # Check if thermal metrics data was received (connect_server returns "" on error)
+        if not result:
+            logging.warning(
+                "Target %s: No thermal metrics data received.",
+                self.col.target
+            )
+            return False
+
+        thermal_metrics = result.get('TemperatureSummaryCelsius', {})
+
+        emitted = False
+        for metric in thermal_metrics:
+            current_labels = {'type': metric}
+            current_labels.update(self.col.labels)
+            entry = thermal_metrics[metric]
+            reading = entry.get('Reading') if isinstance(entry, dict) else None
+            if reading is None:
+                continue
+            self.temperature_metrics.add_sample(
+                "redfish_temperature", value=reading, labels=current_labels
+            )
+            emitted = True
+        return emitted
+
+    def _get_temp_from_legacy_thermal(self):
+        """Fallback to the deprecated /Chassis/{id}/Thermal resource. Reads the
+        Temperatures[] array which most pre-PowerSubsystem BMCs expose. Returns
+        True if at least one reading was emitted."""
+        thermal = self.col.connect_server(self.col.urls['Thermal'])
+        if not thermal:
+            return False
+
+        temperatures = thermal.get('Temperatures', [])
+        if not isinstance(temperatures, list) or not temperatures:
+            return False
+
+        emitted = False
+        for entry in temperatures:
+            reading = entry.get('ReadingCelsius')
+            if reading is None:
+                continue
+            # Skip absent sensors so we don't emit zeros for empty slots.
+            state = entry.get('Status', {}).get('State')
+            if state == 'Absent':
+                continue
+            sensor_name = entry.get('Name') or entry.get('MemberId') or 'unknown'
+            current_labels = {
+                'type': sensor_name,
+                'id': entry.get('MemberId') or entry.get('Id') or 'unknown',
+            }
+            current_labels.update(self.col.labels)
+            self.temperature_metrics.add_sample(
+                "redfish_temperature", value=reading, labels=current_labels
+            )
+            emitted = True
+        return emitted
 
     def collect(self):
         """Collects performance information from the Redfish API."""

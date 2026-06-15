@@ -22,13 +22,14 @@ It has been tested with the following server models:
 | Dell | PowerEdge R7615 | |
 | Dell | PowerEdge R840 | |
 | Dell | PowerEdge R860 | |
+| Fujitsu | PRIMERGY RX2540 M8 | iRMC; Live chassis wattage is not exposed at standard Redfish paths. |
 | HPE | Compute Scale-up Server 3200 | |
 | HPE | ProLiant DL320 Gen11 | |
 | HPE | ProLiant DL345 Gen11 | |
 | HPE | ProLiant DL360 Gen10 | |
 | HPE | ProLiant DL380 Gen11 | |
 | HPE | ProLiant DL560 Gen10 | |
-| HPE | ProLiant DL560 Gen11 | |
+| HPE | ProLiant DL560 Gen11 | iLO 6 reports zero per-PSU live wattage; chassis aggregate is used instead |
 | Lenovo | ThinkSystem SR650 | |
 | Lenovo | ThinkSystem SR650 V3 | |
 | Lenovo | ThinkSystem SR655 V3 | |

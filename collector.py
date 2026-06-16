@@ -395,15 +395,22 @@ class RedfishMetricsCollector:
         links = server_info.get('Links', {})
         chassis_list = links.get('Chassis', [])
         managed_by_list = links.get('ManagedBy', [])
-        if chassis_list and managed_by_list:
+
+        if chassis_list:
             if isinstance(chassis_list[0], str):
                 self.urls['Chassis'] = chassis_list[0]
-                self.urls['ManagedBy'] = managed_by_list[0]
             else:
                 self.urls['Chassis'] = chassis_list[0]['@odata.id']
-                self.urls['ManagedBy'] = managed_by_list[0]['@odata.id']
+
+            if managed_by_list:
+                if isinstance(managed_by_list[0], str):
+                    self.urls['ManagedBy'] = managed_by_list[0]
+                else:
+                    self.urls['ManagedBy'] = managed_by_list[0]['@odata.id']
+            else:
+                logging.warning("Target %s: No ManagedBy links found on server %s!", self.target, self.host)
         else:
-            logging.warning("Target %s: No Chassis/ManagedBy links found on server %s!", self.target, self.host)
+            logging.warning("Target %s: No Chassis links found on server %s!", self.target, self.host)
             return
 
         self.get_chassis_urls()

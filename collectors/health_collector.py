@@ -45,7 +45,7 @@ class HealthCollector():
             )
             current_labels = {
                 "device_type": "processor",
-                "device_name": processor_data.get("Socket", "unknown"),
+                "device_name": str(processor_data.get("Socket", "unknown")),
                 "device_manufacturer": processor_data.get("Manufacturer", "unknown"),
                 "cpu_type": processor_data.get("ProcessorType", "unknown"),
                 "cpu_model": processor_data.get("Model", "unknown"),

@@ -28,6 +28,17 @@ class HealthCollector():
             labels=self.col.labels,
         )
 
+    @staticmethod
+    def _get_str(data, key, default=None):
+        """Return data[key] stripped; falls back to default if missing, None, or blank.
+
+        Some BMCs (Fujitsu, HPE) embed trailing whitespace in string fields.
+        """
+        val = data.get(key) or default
+        if isinstance(val, str):
+            val = val.strip() or default
+        return val
+
     def get_processors_health(self):
         """Get the Processor data from the Redfish API."""
         logging.debug("Target %s: Get the CPU health data.", self.col.target)
@@ -194,9 +205,7 @@ class HealthCollector():
             "CapacityBytes": "disk_capacity",
             "Protocol": "disk_protocol",
         }
-        serial = disk_data.get("SerialNumber")
-        if isinstance(serial, str):
-            serial = serial.strip()
+        serial = self._get_str(disk_data, "SerialNumber")
         labels = {
             "device_type": "disk",
             "id": disk_data.get("Id") or "unknown",
@@ -251,16 +260,9 @@ class HealthCollector():
             return
         
         for psu in power_supplies:
-            psu_name = psu["Name"] if "Name" in psu and psu["Name"] is not None else "unknown"
-            psu_model = psu["Model"] if "Model" in psu and psu["Model"] is not None else "unknown"
-            # Trim trailing whitespace some BMCs (Fujitsu, HPE) embed in model strings.
-            if isinstance(psu_name, str):
-                psu_name = psu_name.strip() or "unknown"
-            if isinstance(psu_model, str):
-                psu_model = psu_model.strip() or "unknown"
-            psu_serial = psu.get("SerialNumber")
-            if isinstance(psu_serial, str):
-                psu_serial = psu_serial.strip()
+            psu_name = self._get_str(psu, "Name", "unknown")
+            psu_model = self._get_str(psu, "Model", "unknown")
+            psu_serial = self._get_str(psu, "SerialNumber")
 
             current_labels = {
                 "device_type": "powersupply",
@@ -309,6 +311,94 @@ class HealthCollector():
                 "Health",
                 current_labels
             )
+
+    def get_networkadapters_health(self):
+        """Get the NetworkAdapters data from the Redfish API."""
+        logging.debug("Target %s: Get the NetworkAdapters health data.", self.col.target)
+        adapters_collection = self.col.connect_server(self.col.urls["NetworkAdapters"])
+        if not adapters_collection:
+            return
+
+        for member in adapters_collection.get("Members", []):
+            adapter_data = self.col.connect_server(member["@odata.id"])
+            if not adapter_data:
+                continue
+
+            # Skip absent bays.
+            state = adapter_data.get("Status", {}).get("State") if isinstance(adapter_data.get("Status"), dict) else None
+            if state == "Absent":
+                continue
+
+            adapter_name         = self._get_str(adapter_data, "Name", "unknown")
+            adapter_manufacturer = self._get_str(adapter_data, "Manufacturer", "unknown")
+            adapter_model        = self._get_str(adapter_data, "Model", "unknown")
+            adapter_serial       = self._get_str(adapter_data, "SerialNumber")
+
+            port_speed_gbps = self._get_max_port_speed_gbps(adapter_data)
+
+            current_labels = {
+                "device_type": "nic",
+                "device_name": adapter_name,
+                "device_manufacturer": adapter_manufacturer,
+                "device_model": adapter_model,
+                "id": adapter_data.get("Id") or "unknown",
+                "serial": adapter_serial or "n/a",
+                "port_speed_gbps": port_speed_gbps,
+            }
+            current_labels.update(self.col.labels)
+
+            nic_health = self.extract_health_status(adapter_data, "NIC", adapter_name)
+            self.add_metric_sample(
+                "redfish_health",
+                {"Health": nic_health},
+                "Health",
+                current_labels,
+            )
+
+    def _get_max_port_speed_gbps(self, adapter_data):
+        """Return the max port speed in Gbps across all ports of a NIC card.
+
+        Tries NetworkPorts first (most vendors), then Ports (HPE Gen11).
+        Returns "unknown" when no port data is available.
+        """
+        ports_link = adapter_data.get("NetworkPorts") or adapter_data.get("Ports")
+        if not ports_link or "@odata.id" not in ports_link:
+            return "unknown"
+
+        ports_collection = self.col.connect_server(ports_link["@odata.id"])
+        if not ports_collection or not ports_collection.get("Members"):
+            return "unknown"
+
+        speeds = []
+        for member in ports_collection["Members"]:
+            port_data = self.col.connect_server(member["@odata.id"])
+            if not port_data:
+                continue
+
+            speed_gbps = 0
+            if "CurrentSpeedGbps" in port_data and port_data["CurrentSpeedGbps"] is not None:
+                speed_gbps = port_data["CurrentSpeedGbps"]
+            else:
+                # SupportedLinkCapabilities: value may be Mbps or bits/s depending on vendor
+                capabilities = port_data.get("SupportedLinkCapabilities", [])
+                if isinstance(capabilities, dict):
+                    capabilities = [capabilities]
+                for cap in (capabilities or []):
+                    raw = cap.get("CapableLinkSpeedMbps") or cap.get("LinkSpeedMbps") or 0
+                    if isinstance(raw, list):
+                        raw = raw[-1] if raw else 0
+                    raw = int(raw)
+                    # Guard: some BMCs report bits/s instead of Mbps
+                    if raw > 1_048_576:
+                        speed_gbps = max(speed_gbps, round(raw / 1_000_000_000))
+                    else:
+                        speed_gbps = max(speed_gbps, round(raw / 1_000))
+
+            speeds.append(speed_gbps)
+
+        if not speeds or max(speeds) == 0:
+            return "unknown"
+        return str(max(speeds))
 
     def get_memory_health(self):
         """Get the Memory data from the Redfish API."""
@@ -435,7 +525,7 @@ class HealthCollector():
             current_labels
         )
 
-        for url_key in ["Processors", "Storage", "Chassis", "Power", "Thermal", "Memory"]:
+        for url_key in ["Processors", "Storage", "Chassis", "Power", "Thermal", "Memory", "NetworkAdapters"]:
             self.collect_health_data(url_key)
 
     def __exit__(self, exc_type, exc_val, exc_tb):

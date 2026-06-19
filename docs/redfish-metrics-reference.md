@@ -207,6 +207,19 @@ Health status of individual hardware components. A single metric family with a `
 | `serial` | DIMM serial number; `n/a` if not provided |
 | **Source** | `GET /redfish/v1/Systems/{id}/Memory/{id}` |
 
+**Network adapter (NIC)**
+
+| Label | Description |
+|---|---|
+| `device_type` | `nic` |
+| `device_name` | Adapter name |
+| `device_manufacturer` | NIC manufacturer |
+| `device_model` | NIC model string |
+| `id` | Redfish `Id` |
+| `serial` | NIC card serial number; `n/a` if not provided |
+| `port_speed_gbps` | Maximum port speed across all ports in Gbps (e.g. `100`); `unknown` if not determinable |
+| **Source** | `GET /redfish/v1/Chassis/{id}/NetworkAdapters/{id}` — port speed from `NetworkPorts` (most vendors) or `Ports` (HPE Gen11) |
+
 ---
 
 ### `redfish_memory_correctable`

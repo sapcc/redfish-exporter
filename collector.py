@@ -47,6 +47,7 @@ class RedfishMetricsCollector:
             "Thermal": "",
             "PowerSubsystem": "",
             "ThermalSubsystem": "",
+            "NetworkAdapters": "",
             "NetworkInterfaces": "",
             "Sensors": "",
         }
@@ -421,7 +422,7 @@ class RedfishMetricsCollector:
         if not chassis_data:
             return None
 
-        urls = ['PowerSubsystem', 'Power', 'ThermalSubsystem', 'Thermal', 'Sensors']
+        urls = ['PowerSubsystem', 'Power', 'ThermalSubsystem', 'Thermal', 'Sensors', 'NetworkAdapters']
 
         for url in urls:
             if url in chassis_data:

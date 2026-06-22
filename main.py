@@ -104,6 +104,11 @@ def get_args():
         action="store_true",
         required=False
     )
+    parser.add_argument(
+        "-s", "--socks5-proxy",
+        dest="socks5_proxy",
+        help="Route Redfish requests through a SOCKS5 proxy in format IP:PORT (e.g. 127.0.0.1:1080)"
+    )
 
     return parser.parse_args()
 
@@ -115,6 +120,25 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     enable_logging(call_args.logging, call_args.debug)
+
+    # Configure SOCKS5 proxy
+    if call_args.socks5_proxy is not None:
+        import socks
+        import socket
+    
+        try:
+            host, port_str = call_args.socks5_proxy.split(":")
+            proxy_port = int(port_str)
+        except ValueError:
+            raise ValueError("Invalid proxy format. Use IP:PORT (e.g. 127.0.0.1:1080)")
+    
+        socks.set_default_proxy(socks.SOCKS5, host, proxy_port)
+        socket.socket = socks.socksocket
+    
+        logging.info(
+            "SOCKS5 proxy enabled: routing outbound Redfish traffic via %s:%s",
+            host, proxy_port
+        )
 
     # get the config
 

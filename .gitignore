@@ -4,3 +4,6 @@ env_*
 hosts_*.txt
 *.ps1
 request.http
+test-reports/
+.claude/*
+*.skill

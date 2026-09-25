@@ -7,3 +7,4 @@ request.http
 test-reports/
 .claude/*
 *.skill
+.venv/*

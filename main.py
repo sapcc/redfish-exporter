@@ -60,9 +60,9 @@ def enable_logging(filename, debug):
     )
 
     if debug:
-        logger.setLevel("DEBUG")
+        logger.setLevel(logging.DEBUG)
     else:
-        logger.setLevel("INFO")
+        logger.setLevel(logging.INFO)
 
     sh = logging.StreamHandler()
     sh.setFormatter(formatter)
@@ -119,6 +119,8 @@ if __name__ == "__main__":
     # get the config
 
     if call_args.config:
+        config_path = os.path.abspath(call_args.config)
+        logging.debug("Loading configuration from %s", config_path)
         try:
             with open(call_args.config, "r", encoding="utf8") as config_file:
                 configuration = yaml.load(config_file.read(), Loader=yaml.FullLoader)

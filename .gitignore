@@ -1,4 +1,5 @@
 __pycache__
+*.log
 .vscode/*
 env_*
 hosts_*.txt

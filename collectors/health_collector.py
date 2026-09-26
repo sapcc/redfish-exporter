@@ -4,6 +4,9 @@ import math
 
 from prometheus_client.core import GaugeMetricFamily
 
+# Controller names that are too generic to identify hardware; prefer the resource Id.
+_GENERIC_CONTROLLER_NAMES = frozenset({"storage", "controller"})
+
 class HealthCollector():
     """Collects health information from the Redfish API."""
     def __enter__(self):
@@ -51,12 +54,13 @@ class HealthCollector():
             if not processor_data:
                 continue
 
+            socket_name = processor_data.get("Socket") or "unknown"
             proc_status = self.extract_health_status(
-                processor_data, "Processor", processor_data.get("Socket", "unknown")
+                processor_data, "Processor", socket_name
             )
             current_labels = {
                 "device_type": "processor",
-                "device_name": str(processor_data.get("Socket", "unknown")),
+                "device_name": socket_name,
                 "device_manufacturer": processor_data.get("Manufacturer", "unknown"),
                 "cpu_type": processor_data.get("ProcessorType", "unknown"),
                 "cpu_model": processor_data.get("Model", "unknown"),
@@ -101,6 +105,7 @@ class HealthCollector():
                 current_labels
             )
 
+            controller_id = controller_data.get("Id") or "unknown"
             for disk in controller_data["Drives"]:
                 disk_data = self.col.connect_server(disk["@odata.id"])
                 if not disk_data:
@@ -111,7 +116,7 @@ class HealthCollector():
                     "Disk",
                     disk_data.get("Name", "unknown")
                 )
-                current_labels = self.get_disk_labels(disk_data)
+                current_labels = self.get_disk_labels(disk_data, controller_id)
                 self.add_metric_sample(
                     "redfish_health",
                     {"Health": disk_status},
@@ -130,8 +135,16 @@ class HealthCollector():
         return list(storage_controllers.values())[0]
 
     def get_controller_name(self, controller_details, controller_data):
-        """Get controller name from controller details or data."""
-        return controller_details.get("Name") or controller_data.get("Name", "unknown")
+        """Get controller name from controller details or data.
+
+        Falls back to the parent resource Id when the reported name is a
+        generic placeholder (e.g. "Storage"), so each controller gets a
+        meaningful, distinct label (e.g. "Module0", "Module1").
+        """
+        name = controller_details.get("Name") or controller_data.get("Name", "unknown")
+        if name.lower() in _GENERIC_CONTROLLER_NAMES:
+            return controller_data.get("Id") or name
+        return name
 
     def extract_health_status(self, data, device_type, device_name):
         """Extract health status from data."""
@@ -195,7 +208,7 @@ class HealthCollector():
         labels.update(self.col.labels)
         return labels
 
-    def get_disk_labels(self, disk_data):
+    def get_disk_labels(self, disk_data, controller_id="unknown"):
         """Generate labels for Disk."""
         disk_attributes = {
             "Name": "device_name",
@@ -210,6 +223,7 @@ class HealthCollector():
             "device_type": "disk",
             "id": disk_data.get("Id") or "unknown",
             "serial": serial or "n/a",
+            "controller_id": controller_id,
         }
         for disk_attribute, label_name in disk_attributes.items():
             value = disk_data.get(disk_attribute)

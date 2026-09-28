@@ -61,9 +61,9 @@ class HealthCollector():
             current_labels = {
                 "device_type": "processor",
                 "device_name": socket_name,
-                "device_manufacturer": processor_data.get("Manufacturer", "unknown"),
-                "cpu_type": processor_data.get("ProcessorType", "unknown"),
-                "cpu_model": processor_data.get("Model", "unknown"),
+                "device_manufacturer": self._get_str(processor_data, "Manufacturer", "unknown"),
+                "cpu_type": self._get_str(processor_data, "ProcessorType", "unknown"),
+                "cpu_model": self._get_str(processor_data, "Model", "unknown"),
                 "cpu_cores": str(processor_data.get("TotalCores", "unknown")),
                 "cpu_threads": str(processor_data.get("TotalThreads", "unknown")),
                 "id": processor_data.get("Id") or "unknown",
@@ -93,6 +93,12 @@ class HealthCollector():
 
             controller_details = self.get_controller_details(controller_data)
             controller_name = self.get_controller_name(controller_details, controller_data)
+            # Some vendors (e.g. Bull BullSequana) assign bare integer Ids to Storage
+            # resources ("0", "1", …) while the meaningful module name is embedded in
+            # the @odata.id path (e.g. "…/Storage/Module0"). Use the last path segment
+            # in that case so labels read "Module0" instead of "0".
+            if controller_name.isdigit():
+                controller_name = controller["@odata.id"].rstrip("/").rsplit("/", 1)[-1]
             controller_status = self.extract_health_status(
                 controller_details, "Controller", controller_name
             )
@@ -105,7 +111,7 @@ class HealthCollector():
                 current_labels
             )
 
-            controller_id = controller_data.get("Id") or "unknown"
+            controller_id = controller_name  # match the resolved device_name label
             for disk in controller_data["Drives"]:
                 disk_data = self.col.connect_server(disk["@odata.id"])
                 if not disk_data:
@@ -200,8 +206,8 @@ class HealthCollector():
         labels = {
             "device_type": "storage",
             "device_name": controller_name,
-            "device_manufacturer": controller_details.get("Manufacturer", "unknown"),
-            "controller_model": controller_details.get("Model", "unknown"),
+            "device_manufacturer": self._get_str(controller_details, "Manufacturer", "unknown"),
+            "controller_model": self._get_str(controller_details, "Model", "unknown"),
             "id": controller_id or "unknown",
             "serial": controller_serial or "n/a",
         }

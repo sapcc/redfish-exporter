@@ -10,6 +10,12 @@ from re import search
 
 from prometheus_client.core import GaugeMetricFamily
 
+# Names that identify the firmware collection resource rather than an individual
+# component (e.g. Bull BullSequana reports Name="Software Inventory" for every
+# entry). When matched, fall back to the item's Id for a meaningful label.
+_GENERIC_FW_NAMES = frozenset({"software inventory"})
+
+
 class FirmwareCollector:
     """
     Collects firmware information from the Redfish API.
@@ -54,9 +60,15 @@ class FirmwareCollector:
                 # Id is unique within the FirmwareInventory collection. Required to prevent
                 # duplicate-labelset collisions when several components share a name
                 # (e.g. multiple PSUs, NICs of the same model).
+                item_id = fw_item.get("Id") or "unknown"
+                # Some vendors (e.g. Bull BullSequana) report the collection's own name
+                # ("Software Inventory") as each item's Name instead of the component name.
+                # Fall back to the Id which carries the meaningful label in those cases.
+                if item_name.lower() in _GENERIC_FW_NAMES:
+                    item_name = item_id
                 current_labels = {
                     "item_name": item_name,
-                    "item_id": fw_item.get("Id") or "unknown",
+                    "item_id": item_id,
                 }
 
                 if self.col.manufacturer == 'Lenovo':

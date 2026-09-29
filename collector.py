@@ -371,6 +371,9 @@ class RedfishMetricsCollector:
         else:
             self.serial = server_info.get('SerialNumber', 'unknown')
 
+        if self.serial is None:
+            self.serial = 'unknown'
+
         self.labels.update(
             {
                 "host": self.host,

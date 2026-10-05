@@ -112,6 +112,8 @@ class HealthCollector():
             )
 
             controller_id = controller_name  # match the resolved device_name label
+            if not controller_data["Drives@odata.count"]:
+                continue
             for disk in controller_data["Drives"]:
                 disk_data = self.col.connect_server(disk["@odata.id"])
                 if not disk_data:

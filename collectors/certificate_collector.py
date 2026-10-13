@@ -3,7 +3,8 @@
 import logging
 import ssl
 import datetime
-import OpenSSL
+from cryptography import x509 as crypto_x509
+from cryptography.x509.oid import NameOID
 from prometheus_client.core import GaugeMetricFamily
 
 class CertificateCollector:
@@ -45,7 +46,7 @@ class CertificateCollector:
         logging.info("Target %s: Collecting certificate data ...", self.target)
 
         cert = None
-        x509 = None
+        cert_obj = None
         cert_days_left = 0
         cert_valid = 0
         cert_has_right_hostname = 0
@@ -58,27 +59,20 @@ class CertificateCollector:
 
         try:
             cert = ssl.get_server_certificate((self.host, self.port))
-            x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+            cert_obj = crypto_x509.load_pem_x509_certificate(cert.encode('utf-8'))
 
-        except OpenSSL.SSL.Error as e:
+        except (ssl.SSLError, OSError) as e:
             logging.debug("Target %s: Certificate Validation Error!", self.target)
             logging.debug("Target %s: %s", self.target, e)
 
-        if cert and x509:
-            subject = [
-                value.decode('utf-8') for name, value in x509.get_subject().get_components()
-                if name.decode('utf-8') == 'CN'
-            ][0]
-            issuer = [
-                value.decode('utf-8') for name, value in x509.get_issuer().get_components()
-                if name.decode('utf-8') == 'CN'
-            ][0]
+        if cert and cert_obj:
+            subject_attrs = cert_obj.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+            subject = subject_attrs[0].value if subject_attrs else 'n/a'
 
-            not_after_str = x509.get_notAfter().decode('utf-8')
+            issuer_attrs = cert_obj.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+            issuer = issuer_attrs[0].value if issuer_attrs else 'n/a'
 
-            cert_expiry_date = datetime.datetime.strptime(
-                not_after_str, '%Y%m%d%H%M%S%fZ'
-            ) if not_after_str else datetime.datetime.now()
+            cert_expiry_date = cert_obj.not_valid_after_utc.replace(tzinfo=None)
 
             cert_days_left = (cert_expiry_date - datetime.datetime.now()).days
 

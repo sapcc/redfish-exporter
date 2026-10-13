@@ -4,3 +4,4 @@ falcon
 argparse
 pyyaml
 pyOpenSSL
+cryptography

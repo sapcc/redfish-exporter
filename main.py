@@ -99,9 +99,16 @@ def get_args():
         required=False
     )
     parser.add_argument(
-        "-d", "--debug", 
+        "-d", "--debug",
         help="Debugging mode",
         action="store_true",
+        required=False
+    )
+    parser.add_argument(
+        "-s", "--socks5-proxy",
+        dest="socks5_proxy",
+        help="Route Redfish requests through a SOCKS5 proxy in format IP:PORT (e.g. 127.0.0.1:1080)",
+        metavar="IP:PORT",
         required=False
     )
 
@@ -127,5 +134,9 @@ if __name__ == "__main__":
         except FileNotFoundError as err:
             print(f"Config File not found: {err}")
             sys.exit(1)
+
+        if call_args.socks5_proxy:
+            configuration['socks5_proxy'] = call_args.socks5_proxy
+            logging.info("SOCKS5 proxy enabled: routing Redfish traffic via %s", call_args.socks5_proxy)
 
         falcon_app(configuration)

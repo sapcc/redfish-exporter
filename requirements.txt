@@ -1,4 +1,4 @@
-requests
+requests[socks]
 prometheus-client
 falcon
 argparse

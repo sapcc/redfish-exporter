@@ -29,6 +29,7 @@ class RedfishMetricsCollector:
         self.metrics_type = metrics_type
 
         self._timeout = int(os.getenv("TIMEOUT", config.get('timeout', 10)))
+        self._socks5_proxy = config.get('socks5_proxy')
         self.labels = {"host": self.host}
         self._redfish_up = 0
         self._response_time = 0
@@ -229,6 +230,8 @@ class RedfishMetricsCollector:
         # check if we already established a session with the server
         if not self._session:
             self._session = requests.Session()
+            if self._socks5_proxy:
+                self._session.proxies = {"https": f"socks5h://{self._socks5_proxy}"}
         else:
             logging.debug("Target %s: Using existing session.", self.target)
 

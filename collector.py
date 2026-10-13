@@ -367,9 +367,9 @@ class RedfishMetricsCollector:
         self.powerstate = power_states[power_state.lower()] if power_state else 0
         # Dell has the Serial# in the SKU field, others in the SerialNumber field.
         if "SKU" in server_info and re.match(r'^[Dd]ell.*', server_info['Manufacturer']):
-            self.serial = server_info.get('SKU', 'unknown')
+            self.serial = server_info.get('SKU') or 'unknown'
         else:
-            self.serial = server_info.get('SerialNumber', 'unknown')
+            self.serial = server_info.get('SerialNumber') or 'unknown'
 
         self.labels.update(
             {

@@ -254,12 +254,12 @@ class HealthCollector():
 
         current_labels = {
             "device_type": "chassis",
-            "device_name": chassis_data["Name"],
+            "device_name": chassis_data.get("Name") or chassis_data.get("Id") or "unknown",
             "id": chassis_data.get("Id") or "unknown",
             "serial": chassis_data.get("SerialNumber") or "n/a",
         }
         current_labels.update(self.col.labels)
-        chassis_health = self.extract_health_status(chassis_data, "Chassis", chassis_data["Name"])
+        chassis_health = self.extract_health_status(chassis_data, "Chassis", chassis_data.get("Name") or chassis_data.get("Id") or "unknown")
         self.add_metric_sample(
             "redfish_health",
             {"Health": chassis_health},

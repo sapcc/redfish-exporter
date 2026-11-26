@@ -466,8 +466,8 @@ class HealthCollector():
             "device_name": dimm_info["Name"],
             "dimm_capacity": str(dimm_info["CapacityMiB"]),
             "dimm_speed": str(dimm_info.get("OperatingSpeedMhz", "unknown")),
-            "dimm_type": str(dimm_info["MemoryDeviceType"]),
-            "device_manufacturer": str(dimm_info.get("Manufacturer", "N/A")),
+            "dimm_type": self._get_str(dimm_info, "MemoryDeviceType", "unknown"),
+            "device_manufacturer": self._get_str(dimm_info, "Manufacturer", "N/A"),
             "id": dimm_info.get("Id") or "unknown",
             "serial": dimm_info.get("SerialNumber") or "n/a",
         }

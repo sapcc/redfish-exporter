@@ -316,7 +316,7 @@ class HealthCollector():
             return
 
         for fan in fans:
-            fan_name = fan.get("Name", "unknown")
+            fan_name = self._get_str(fan, "Name", "unknown")
             current_labels = {
                 "device_type": "fan",
                 "device_name": fan_name,
@@ -466,14 +466,14 @@ class HealthCollector():
             "device_name": dimm_info["Name"],
             "dimm_capacity": str(dimm_info["CapacityMiB"]),
             "dimm_speed": str(dimm_info.get("OperatingSpeedMhz", "unknown")),
-            "dimm_type": dimm_info.get("MemoryDeviceType", "unknown"),
-            "device_manufacturer": dimm_info.get("Manufacturer", "N/A"),
+            "dimm_type": self._get_str(dimm_info, "MemoryDeviceType", "unknown"),
+            "device_manufacturer": self._get_str(dimm_info, "Manufacturer", "N/A"),
             "id": dimm_info.get("Id") or "unknown",
             "serial": dimm_info.get("SerialNumber") or "n/a",
         }
 
         if "Oem" in dimm_info and "Hpe" in dimm_info["Oem"]:
-            labels["device_manufacturer"] = dimm_info["Oem"]["Hpe"].get("VendorName", "unknown")
+            labels["device_manufacturer"] = self._get_str(dimm_info["Oem"]["Hpe"], "VendorName", "unknown")
 
         labels.update(self.col.labels)
         return labels
